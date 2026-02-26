@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,41 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // 🔥 Guard: Block logged-in users
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
+
+      if (session) {
+        const user = session.user;
+        const role = user.app_metadata?.role;
+
+        if (role === "admin") {
+          router.replace("/admin");
+        } else if (role === "mentor") {
+          router.replace("/mentor");
+        } else {
+          router.replace("/dashboard");
+        }
+
+        return;
+      }
+
+      setCheckingAuth(false);
+    };
+
+    checkSession();
+  }, [router]);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +71,15 @@ export default function ForgotPasswordPage() {
     setMessage("Password reset link has been sent to your email.");
     setLoading(false);
   };
+
+  // 🔥 Prevent flicker
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Checking authentication...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
@@ -63,7 +104,6 @@ export default function ForgotPasswordPage() {
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
-
             {message && <p className="text-sm text-green-600">{message}</p>}
 
             <Button type="submit" className="w-full" disabled={loading}>

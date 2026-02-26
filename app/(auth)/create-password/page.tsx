@@ -17,31 +17,45 @@ export default function CreatePasswordPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [sessionReady, setSessionReady] = useState(false)
+
+  const [checkingAuth, setCheckingAuth] = useState(true)
 
   const passwordsValid = password.length >= 6 && password === confirmPassword
 
-  // Check magic signup session
+  // 🔥 Auth Guard (NO REDUX)
   useEffect(() => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession()
+      const session = data.session
 
-      if (data.session) {
-        setSessionReady(true)
-      } else {
-        setTimeout(async () => {
-          const { data } = await supabase.auth.getSession()
-          if (data.session) {
-            setSessionReady(true)
-          } else {
-            router.push("/login")
-          }
-        }, 1000)
+      // ❌ Not logged in
+      if (!session) {
+        router.replace("/login")
+        return
       }
+
+      const user = session.user
+      const role = user.app_metadata?.role
+      const setPasswordFlag = user.user_metadata?.setPassword
+
+      // ✅ If password already set → redirect based on role
+      if (setPasswordFlag === true) {
+        if (role === "admin") {
+          router.replace("/admin")
+        } else if (role === "mentor") {
+          router.replace("/mentor")
+        } else {
+          router.replace("/dashboard")
+        }
+        return
+      }
+
+      // ✅ Allow page access
+      setCheckingAuth(false)
     }
 
     checkSession()
-  }, [])
+  }, [router])
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,7 +77,7 @@ export default function CreatePasswordPage() {
 
     setSuccess(true)
 
-    // Optional: sign out recovery session before redirect
+    // Sign out recovery session
     await supabase.auth.signOut()
 
     setTimeout(() => {
@@ -71,7 +85,8 @@ export default function CreatePasswordPage() {
     }, 2000)
   }
 
-  if (!sessionReady) {
+  // 🔥 Prevent Flicker
+  if (checkingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>Preparing page...</p>

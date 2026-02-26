@@ -1,16 +1,16 @@
 "use client"
-
-import { DashboardSidebar } from "@/components/dashboard-sidebar"
-import { DashboardNavbar } from "@/components/dashboard-navbar"
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { useRouter } from "next/navigation"
+import { AdminSidebar } from "@/components/admin/admin-sidebar"
+import { AdminNavbar } from "@/components/admin/admin-navbar"
 
-export default function DashboardLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+
   const router = useRouter()
   const [checkingAuth, setCheckingAuth] = useState(true)
 
@@ -34,16 +34,18 @@ export default function DashboardLayout({
         return
       }
 
-      if (role === "admin") {
-        router.replace("/admin")
-        return
-      } else if (role === "mentor") {
+      if (role === "mentor") {
         router.replace("/mentor")
         return
+      } else if (role === "admin") {
+        // Admin is allowed, so stop checking
+        setCheckingAuth(false)
+        return
+      } else {
+        // Any other role not allowed in admin
+        router.replace("/login")
+        return
       }
-
-      // If role is student or allowed user, stop checking
-      setCheckingAuth(false)
     }
 
     checkSession()
@@ -59,9 +61,9 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardSidebar />
+      <AdminSidebar />
       <div className="ml-64">
-        <DashboardNavbar />
+        <AdminNavbar />
         <main className="p-6">{children}</main>
       </div>
     </div>

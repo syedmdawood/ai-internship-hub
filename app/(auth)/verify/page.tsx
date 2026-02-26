@@ -11,6 +11,7 @@ export default function VerifyPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
+  const [checkingAuth, setCheckingAuth] = useState(true)
   useEffect(() => {
     const storedEmail = localStorage.getItem("pendingEmail")
     if (!storedEmail) {
@@ -19,6 +20,34 @@ export default function VerifyPage() {
       setEmail(storedEmail)
     }
   }, [])
+
+  
+    // 🔥 Guard: Prevent logged-in users from accessing login page
+    useEffect(() => {
+      const checkSession = async () => {
+        const { data } = await supabase.auth.getSession()
+        const session = data.session
+  
+        if (session) {
+          const user = session.user
+          const role = user.app_metadata?.role
+  
+          if (role === "admin") {
+            router.replace("/admin")
+          } else if (role === "mentor") {
+            router.replace("/mentor")
+          } else {
+            router.replace("/dashboard")
+          }
+  
+          return
+        }
+  
+        setCheckingAuth(false)
+      }
+  
+      checkSession()
+    }, [router])
 
   const resendLink = async () => {
     if (!email) return
@@ -37,6 +66,13 @@ export default function VerifyPage() {
     }
 
     setLoading(false)
+  }
+    if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Checking authentication...</p>
+      </div>
+    )
   }
 
   return (

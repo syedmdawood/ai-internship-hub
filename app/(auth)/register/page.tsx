@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,34 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const router = useRouter();
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession()
+      const session = data.session
+
+      if (session) {
+        const user = session.user
+        const role = user.app_metadata?.role
+
+        if (role === "admin") {
+          router.replace("/admin")
+        } else if (role === "mentor") {
+          router.replace("/mentor")
+        } else {
+          router.replace("/dashboard")
+        }
+
+        return
+      }
+
+      setCheckingAuth(false)
+    }
+
+    checkSession()
+  }, [router])
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +71,7 @@ export default function RegisterPage() {
         },
       },
     });
-    if(error){
+    if (error) {
       setError(error.message);
       setLoading(false);
       return;
@@ -57,6 +84,14 @@ export default function RegisterPage() {
     setMessage("Check your email for the login link.");
     setLoading(false);
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Checking authentication...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">

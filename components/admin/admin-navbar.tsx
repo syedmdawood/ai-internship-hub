@@ -19,7 +19,7 @@ import { useDispatch } from "react-redux"
 import { logout } from "@/redux/features/authSlice"
 import { useRouter } from "next/navigation"
 
-export function DashboardNavbar() {
+export function AdminNavbar() {
   const dispatch = useDispatch()
   const router = useRouter()
 
