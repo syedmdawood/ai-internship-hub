@@ -1,36 +1,166 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabaseClient"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { ClipboardCheck, Timer, Brain, TrendingUp, Target, ArrowRight } from "lucide-react"
-import { assessmentQuestions } from "@/lib/mock-data"
+
+import {
+  ClipboardCheck,
+  Timer,
+  ArrowRight,
+} from "lucide-react"
+
 import { cn } from "@/lib/utils"
 
 export default function AssessmentPage() {
+  const [questions, setQuestions] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
   const [started, setStarted] = useState(false)
   const [currentQuestion, setCurrentQuestion] = useState(0)
-  const [answers, setAnswers] = useState<Record<number, number>>({})
+  const [answers, setAnswers] = useState<Record<string, string>>({})
   const [showResult, setShowResult] = useState(false)
-  const [timeLeft] = useState(300)
 
-  const progress = ((currentQuestion + 1) / assessmentQuestions.length) * 100
+  const [domainScores, setDomainScores] = useState<Record<string, number>>({})
+  const [recommendedDomains, setRecommendedDomains] = useState<string[]>([])
+  const [timeLeft, setTimeLeft] = useState(5)
+  const [skillLevel, setSkillLevel] = useState("")
 
-  const handleAnswer = (questionId: number, answerIndex: number) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: answerIndex }))
+
+  // ================= FETCH QUESTIONS =================
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      const { data, error } = await supabase
+        .from("questions")
+        .select(`
+          id,
+          question_text,
+          options,
+          correct_answer,
+          domains(name)
+        `)
+
+      if (!error && data) {
+        setQuestions(data)
+      }
+
+      setLoading(false)
+    }
+
+    fetchQuestions()
+  }, [])
+
+  useEffect(() => {
+    if (!started) return
+    if (showResult) return
+    if (timeLeft <= 0) {
+      evaluateAssessment()
+      return
+    }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [started, timeLeft, showResult])
+
+  // ================= PROGRESS =================
+  const progress = questions.length
+    ? ((currentQuestion + 1) / questions.length) * 100
+    : 0
+
+  // ================= HANDLE ANSWER =================
+  const handleAnswer = (questionId: string, selectedOption: string) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: selectedOption,
+    }))
   }
 
+  // ================= NEXT BUTTON =================
   const handleNext = () => {
-    if (currentQuestion < assessmentQuestions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1)
+    if (currentQuestion < questions.length - 1) {
+      setCurrentQuestion((prev) => prev + 1)
     } else {
-      setShowResult(true)
+      evaluateAssessment()
     }
+  }
+
+  // ================= EVALUATION LOGIC =================
+  const evaluateAssessment = async () => {
+    let scores: Record<string, number> = {}
+
+    questions.forEach((q) => {
+      const domainName = q.domains.name
+
+      if (!scores[domainName]) {
+        scores[domainName] = 0
+      }
+
+      if (answers[q.id] === q.correct_answer) {
+        scores[domainName] += 1
+      }
+    })
+
+    setDomainScores(scores)
+
+    const values = Object.values(scores)
+    const maxScore = Math.max(...values)
+
+    let recommended: string[] = []
+
+    if (maxScore === 0) {
+      recommended = ["Beginner Freelancing Path"]
+    } else {
+      recommended = Object.keys(scores).filter(
+        (domain) => scores[domain] === maxScore
+      )
+    }
+
+    setRecommendedDomains(recommended)
+
+    const totalScore = values.reduce((a, b) => a + b, 0)
+
+    const percentage = (totalScore / questions.length) * 100
+
+    let computedSkillLevel = ""
+    if (percentage >= 80) {
+      computedSkillLevel = "Advanced"
+    } else if (percentage >= 50) {
+      computedSkillLevel = "Intermediate"
+    } else {
+      computedSkillLevel = "Beginner"
+    }
+
+    setSkillLevel(computedSkillLevel)
+
+    const { data: userData } = await supabase.auth.getUser()
+
+    if (userData?.user) {
+      await supabase.from("assessment_results").insert({
+        user_id: userData.user.id,
+        domain_scores: scores,
+        recommended_domain: recommended,
+        total_score: totalScore,
+        skill_level: computedSkillLevel,
+      })
+    }
+
+    setShowResult(true)
   }
 
   const formatTime = (seconds: number) => {
@@ -39,196 +169,173 @@ export default function AssessmentPage() {
     return `${m}:${s.toString().padStart(2, "0")}`
   }
 
-  const score = Object.entries(answers).reduce((acc, [qId, aId]) => {
-    const question = assessmentQuestions.find((q) => q.id === Number(qId))
-    return acc + (question && question.correct === aId ? 1 : 0)
-  }, 0)
+  const totalCorrect = Object.values(domainScores).reduce(
+    (a, b) => a + b,
+    0
+  )
 
+  // ================= LOADING =================
+  if (loading) {
+    return <div className="p-6">Loading assessment...</div>
+  }
+
+  // ================= START SCREEN =================
   if (!started) {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Skill Assessment</h1>
+          <h1 className="text-2xl font-bold">Skill Assessment</h1>
           <p className="text-muted-foreground mt-1">
-            Discover your strengths and get personalized task recommendations.
+            Discover your strengths and get personalized domain recommendations.
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                <ClipboardCheck className="h-6 w-6 text-primary" />
-              </div>
-              <CardTitle className="text-lg mt-4">Web Development Assessment</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Test your knowledge in HTML, CSS, JavaScript, and modern frameworks.
-              </p>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Timer className="h-4 w-4" /> 5 minutes
-                </span>
-                <span className="flex items-center gap-1">
-                  <Target className="h-4 w-4" /> {assessmentQuestions.length} questions
-                </span>
-              </div>
-              <Button onClick={() => setStarted(true)} className="w-full">
-                Start Assessment <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20">
-                <Brain className="h-6 w-6 text-accent" />
-              </div>
-              <CardTitle className="text-lg mt-4">UI/UX Design Assessment</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Evaluate your design thinking, user research, and visual design skills.
-              </p>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Timer className="h-4 w-4" /> 5 minutes
-                </span>
-                <span className="flex items-center gap-1">
-                  <Target className="h-4 w-4" /> 5 questions
-                </span>
-              </div>
-              <Button variant="outline" className="w-full" disabled>
-                Coming Soon
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="border-border/50 shadow-sm">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-base">Previous Results</CardTitle>
+            <CardTitle>Freelancing Skill Assessment</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-4 rounded-xl bg-secondary/50">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
-                  <TrendingUp className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Content Writing Assessment</p>
-                  <p className="text-xs text-muted-foreground">Completed on Feb 10, 2026</p>
-                </div>
-              </div>
-              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                Score: 82%
-              </Badge>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Timer className="h-4 w-4" /> 5 minutes
+              </span>
+              <span>
+                {questions.length} questions
+              </span>
             </div>
+
+            <Button onClick={() => setStarted(true)} className="w-full">
+              Start Assessment <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </CardContent>
         </Card>
       </div>
     )
   }
 
+  // ================= QUESTION SCREEN =================
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Web Development Assessment</h1>
+          <h1 className="text-2xl font-bold">
+            Skill Assessment
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Question {currentQuestion + 1} of {assessmentQuestions.length}
+            Question {currentQuestion + 1} of {questions.length}
           </p>
         </div>
-        <Badge variant="outline" className="text-base px-4 py-2">
+
+        <Badge variant="outline">
           <Timer className="mr-2 h-4 w-4" />
           {formatTime(timeLeft)}
         </Badge>
       </div>
 
-      <Progress value={progress} className="h-2" />
+      <Progress value={progress} />
 
-      <Card className="border-border/50 shadow-sm">
+      <Card>
         <CardContent className="p-6 space-y-6">
-          <h2 className="text-lg font-semibold text-foreground">
-            {assessmentQuestions[currentQuestion].question}
+          <h2 className="text-lg font-semibold">
+            {questions[currentQuestion]?.question_text}
           </h2>
 
           <RadioGroup
-            value={answers[assessmentQuestions[currentQuestion].id]?.toString()}
+            value={answers[questions[currentQuestion]?.id]}
             onValueChange={(val) =>
-              handleAnswer(assessmentQuestions[currentQuestion].id, parseInt(val))
+              handleAnswer(questions[currentQuestion]?.id, val)
             }
           >
             <div className="space-y-3">
-              {assessmentQuestions[currentQuestion].options.map((option, idx) => (
-                <Label
-                  key={idx}
-                  htmlFor={`option-${idx}`}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl border border-border/50 p-4 cursor-pointer transition-colors hover:bg-secondary/50",
-                    answers[assessmentQuestions[currentQuestion].id] === idx &&
+              {questions[currentQuestion]?.options.map(
+                (option: string, idx: number) => (
+                  <Label
+                    key={idx}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition hover:bg-secondary/50",
+                      answers[questions[currentQuestion]?.id] === option &&
                       "border-primary bg-primary/5"
-                  )}
-                >
-                  <RadioGroupItem value={idx.toString()} id={`option-${idx}`} />
-                  <span className="text-sm text-foreground">{option}</span>
-                </Label>
-              ))}
+                    )}
+                  >
+                    <RadioGroupItem value={option} />
+                    <span>{option}</span>
+                  </Label>
+                )
+              )}
             </div>
           </RadioGroup>
 
           <div className="flex justify-end">
             <Button
               onClick={handleNext}
-              disabled={answers[assessmentQuestions[currentQuestion].id] === undefined}
+              disabled={
+                answers[questions[currentQuestion]?.id] === undefined
+              }
             >
-              {currentQuestion < assessmentQuestions.length - 1 ? "Next Question" : "Submit Assessment"}
+              {currentQuestion < questions.length - 1
+                ? "Next Question"
+                : "Submit Assessment"}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </CardContent>
       </Card>
 
+      {/* ================= RESULT MODAL ================= */}
       <Dialog open={showResult} onOpenChange={setShowResult}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] flex flex-col [&>button]:hidden">
           <DialogHeader>
-            <DialogTitle className="text-center text-xl">Assessment Complete!</DialogTitle>
+            <DialogTitle className="text-center text-xl">
+              Assessment Complete!
+            </DialogTitle>
             <DialogDescription className="text-center">
-              {"Here are your results and recommendations."}
+              Here are your results and recommendations.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 py-4">
+
+          <div className="flex-1 overflow-y-auto space-y-6 py-4 pr-2">
             <div className="text-center">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
                 <span className="text-3xl font-bold text-primary">
-                  {Math.round((score / assessmentQuestions.length) * 100)}%
+                  {Math.round(
+                    (totalCorrect / questions.length) * 100
+                  )}
+                  %
                 </span>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                {score}/{assessmentQuestions.length} correct answers
+                {totalCorrect} / {questions.length} correct answers
               </p>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+              <div className="rounded-xl bg-secondary/50 p-4 space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Domain-wise Scores
+                </p>
+
+                {Object.entries(domainScores).map(([domain, score]) => (
+                  <div
+                    key={domain}
+                    className="flex justify-between text-sm"
+                  >
+                    <span>{domain}</span>
+                    <span className="font-medium">
+                      {score}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
               <div className="rounded-xl bg-secondary/50 p-4">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Recommended Domain
                 </p>
-                <p className="text-sm font-semibold text-foreground mt-1">Web Development</p>
-              </div>
-              <div className="rounded-xl bg-secondary/50 p-4">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Skill Level
+                <p className="text-sm font-semibold mt-1">
+                  {recommendedDomains.join(", ")}
                 </p>
-                <p className="text-sm font-semibold text-foreground mt-1">Intermediate</p>
-              </div>
-              <div className="rounded-xl bg-secondary/50 p-4">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Suggested Roadmap
-                </p>
-                <p className="text-sm text-foreground mt-1">
-                  Focus on React fundamentals, then progress to Next.js and TypeScript for full-stack development.
+                <p className="mt-2 text-sm font-medium">
+                  Skill Level: <span className="text-primary">{skillLevel}</span>
                 </p>
               </div>
             </div>
@@ -240,6 +347,9 @@ export default function AssessmentPage() {
                 setStarted(false)
                 setCurrentQuestion(0)
                 setAnswers({})
+                setDomainScores({})
+                setRecommendedDomains([])
+                setTimeLeft(300)
               }}
             >
               Back to Assessments
