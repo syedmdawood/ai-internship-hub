@@ -17,17 +17,12 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 
-import {
-  ClipboardCheck,
-  Timer,
-  ArrowRight,
-} from "lucide-react"
-
+import { Timer, ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export default function AssessmentPage() {
   const [questions, setQuestions] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   const [started, setStarted] = useState(false)
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -36,36 +31,61 @@ export default function AssessmentPage() {
 
   const [domainScores, setDomainScores] = useState<Record<string, number>>({})
   const [recommendedDomains, setRecommendedDomains] = useState<string[]>([])
-  const [timeLeft, setTimeLeft] = useState(5)
+  const [timeLeft, setTimeLeft] = useState(300)
   const [skillLevel, setSkillLevel] = useState("")
-
+  const [showDomainSelect, setShowDomainSelect] = useState(false)
+  const [selectedDomains, setSelectedDomains] = useState<string[]>([])
+  const [aiRecommendation, setAiRecommendation] = useState("")
 
   // ================= FETCH QUESTIONS =================
-  useEffect(() => {
-    const fetchQuestions = async () => {
-      const { data, error } = await supabase
-        .from("questions")
-        .select(`
-          id,
-          question_text,
-          options,
-          correct_answer,
-          domains(name)
-        `)
+  const fetchQuestions = async () => {
+    setLoading(true)
 
-      if (!error && data) {
-        setQuestions(data)
-      }
+    const { data, error } = await supabase
+      .from("questions")
+      .select(`
+        id,
+        question_text,
+        options,
+        correct_answer,
+        domains(name)
+      `)
 
-      setLoading(false)
+    if (!error && data) {
+      const filtered = data.filter((q) =>
+        selectedDomains.includes(q.domains?.[0]?.name)
+      )
+
+      const grouped: Record<string, any[]> = {}
+
+      filtered.forEach((q) => {
+        const domain = q.domains?.[0]?.name
+        if (!grouped[domain]) grouped[domain] = []
+        grouped[domain].push(q)
+      })
+
+      let finalQuestions: any[] = []
+
+      Object.values(grouped).forEach((arr) => {
+        finalQuestions.push(...arr.slice(0, 5))
+      })
+
+      setQuestions(finalQuestions)
     }
 
-    fetchQuestions()
-  }, [])
+    setLoading(false)
+  }
 
   useEffect(() => {
-    if (!started) return
-    if (showResult) return
+    if (started) {
+      fetchQuestions()
+    }
+  }, [started])
+
+  // ================= TIMER =================
+  useEffect(() => {
+    if (!started || showResult) return
+
     if (timeLeft <= 0) {
       evaluateAssessment()
       return
@@ -78,11 +98,6 @@ export default function AssessmentPage() {
     return () => clearInterval(timer)
   }, [started, timeLeft, showResult])
 
-  // ================= PROGRESS =================
-  const progress = questions.length
-    ? ((currentQuestion + 1) / questions.length) * 100
-    : 0
-
   // ================= HANDLE ANSWER =================
   const handleAnswer = (questionId: string, selectedOption: string) => {
     setAnswers((prev) => ({
@@ -91,7 +106,7 @@ export default function AssessmentPage() {
     }))
   }
 
-  // ================= NEXT BUTTON =================
+  // ================= NEXT =================
   const handleNext = () => {
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion((prev) => prev + 1)
@@ -100,19 +115,16 @@ export default function AssessmentPage() {
     }
   }
 
-  // ================= EVALUATION LOGIC =================
+  // ================= EVALUATION =================
   const evaluateAssessment = async () => {
     let scores: Record<string, number> = {}
 
     questions.forEach((q) => {
-      const domainName = q.domains.name
-
-      if (!scores[domainName]) {
-        scores[domainName] = 0
-      }
+      const domain = q.domains?.[0]?.name
+      if (!scores[domain]) scores[domain] = 0
 
       if (answers[q.id] === q.correct_answer) {
-        scores[domainName] += 1
+        scores[domain]++
       }
     })
 
@@ -121,33 +133,49 @@ export default function AssessmentPage() {
     const values = Object.values(scores)
     const maxScore = Math.max(...values)
 
-    let recommended: string[] = []
-
-    if (maxScore === 0) {
-      recommended = ["Beginner Freelancing Path"]
-    } else {
-      recommended = Object.keys(scores).filter(
-        (domain) => scores[domain] === maxScore
-      )
-    }
+    let recommended: string[] =
+      maxScore === 0
+        ? ["Beginner Freelancing Path"]
+        : Object.keys(scores).filter((d) => scores[d] === maxScore)
 
     setRecommendedDomains(recommended)
 
     const totalScore = values.reduce((a, b) => a + b, 0)
-
     const percentage = (totalScore / questions.length) * 100
 
-    let computedSkillLevel = ""
-    if (percentage >= 80) {
-      computedSkillLevel = "Advanced"
-    } else if (percentage >= 50) {
-      computedSkillLevel = "Intermediate"
-    } else {
-      computedSkillLevel = "Beginner"
+    let level =
+      percentage >= 80
+        ? "Advanced"
+        : percentage >= 50
+          ? "Intermediate"
+          : "Beginner"
+
+    setSkillLevel(level)
+
+    // ================= AI CALL =================
+    let aiText = "AI recommendation not available." // ✅ DEFINE HERE
+
+    try {
+      const res = await fetch("/api/recommend", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ scores }),
+      })
+
+      const aiData = await res.json()
+      aiText = aiData.result || "No AI response"
+
+      setAiRecommendation(aiText)
+
+    } catch (err) {
+      console.error("AI Error:", err)
+      aiText = "AI recommendation not available."
+      setAiRecommendation(aiText)
     }
 
-    setSkillLevel(computedSkillLevel)
-
+    // ================= SAVE =================
     const { data: userData } = await supabase.auth.getUser()
 
     if (userData?.user) {
@@ -156,89 +184,102 @@ export default function AssessmentPage() {
         domain_scores: scores,
         recommended_domain: recommended,
         total_score: totalScore,
-        skill_level: computedSkillLevel,
+        skill_level: level,
+        ai_recommendation: aiText,
       })
     }
-
     setShowResult(true)
   }
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60)
-    const s = seconds % 60
-    return `${m}:${s.toString().padStart(2, "0")}`
+  // ================= RESET =================
+  const resetAssessment = () => {
+    setShowResult(false)
+    setStarted(false)
+    setCurrentQuestion(0)
+    setAnswers({})
+    setDomainScores({})
+    setRecommendedDomains([])
+    setSelectedDomains([])
+    setAiRecommendation("")
+    setTimeLeft(300)
   }
 
-  const totalCorrect = Object.values(domainScores).reduce(
-    (a, b) => a + b,
-    0
-  )
-
-  // ================= LOADING =================
-  if (loading) {
-    return <div className="p-6">Loading assessment...</div>
-  }
-
-  // ================= START SCREEN =================
+  // ================= UI =================
   if (!started) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Skill Assessment</h1>
-          <p className="text-muted-foreground mt-1">
-            Discover your strengths and get personalized domain recommendations.
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold">Skill Assessment</h1>
 
         <Card>
           <CardHeader>
             <CardTitle>Freelancing Skill Assessment</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Timer className="h-4 w-4" /> 5 minutes
-              </span>
-              <span>
-                {questions.length} questions
-              </span>
-            </div>
-
-            <Button onClick={() => setStarted(true)} className="w-full">
+          <CardContent>
+            <Button onClick={() => setShowDomainSelect(true)} className="w-full">
               Start Assessment <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </CardContent>
         </Card>
+
+        {/* DOMAIN SELECT */}
+        <Dialog open={showDomainSelect} onOpenChange={setShowDomainSelect}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Select Domains</DialogTitle>
+              <DialogDescription>Max 3</DialogDescription>
+            </DialogHeader>
+
+            <div className="grid grid-cols-2 gap-3">
+              {["Frontend", "Backend", "Python", "Content Writing", "Graphic Design"].map((domain) => {
+                const selected = selectedDomains.includes(domain)
+
+                return (
+                  <div
+                    key={domain}
+                    onClick={() => {
+                      if (selected) {
+                        setSelectedDomains(selectedDomains.filter(d => d !== domain))
+                      } else if (selectedDomains.length < 3) {
+                        setSelectedDomains([...selectedDomains, domain])
+                      }
+                    }}
+                    className={cn(
+                      "cursor-pointer rounded-xl border p-4",
+                      selected && "border-primary bg-primary/10"
+                    )}
+                  >
+                    {domain}
+                  </div>
+                )
+              })}
+            </div>
+
+            <Button
+              className="w-full mt-4"
+              disabled={!selectedDomains.length}
+              onClick={() => {
+                setShowDomainSelect(false)
+                setStarted(true)
+              }}
+            >
+              Start Test
+            </Button>
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }
 
-  // ================= QUESTION SCREEN =================
+  // ================= QUESTIONS =================
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">
-            Skill Assessment
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Question {currentQuestion + 1} of {questions.length}
-          </p>
-        </div>
+      <Badge>{timeLeft}s</Badge>
 
-        <Badge variant="outline">
-          <Timer className="mr-2 h-4 w-4" />
-          {formatTime(timeLeft)}
-        </Badge>
-      </div>
-
-      <Progress value={progress} />
+      <Progress value={((currentQuestion + 1) / questions.length) * 100} />
 
       <Card>
         <CardContent className="p-6 space-y-6">
-          <h2 className="text-lg font-semibold">
-            {questions[currentQuestion]?.question_text}
-          </h2>
+          <h2>{questions[currentQuestion]?.question_text}</h2>
 
           <RadioGroup
             value={answers[questions[currentQuestion]?.id]}
@@ -246,115 +287,36 @@ export default function AssessmentPage() {
               handleAnswer(questions[currentQuestion]?.id, val)
             }
           >
-            <div className="space-y-3">
-              {questions[currentQuestion]?.options.map(
-                (option: string, idx: number) => (
-                  <Label
-                    key={idx}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl border p-4 cursor-pointer transition hover:bg-secondary/50",
-                      answers[questions[currentQuestion]?.id] === option &&
-                      "border-primary bg-primary/5"
-                    )}
-                  >
-                    <RadioGroupItem value={option} />
-                    <span>{option}</span>
-                  </Label>
-                )
-              )}
-            </div>
+            {questions[currentQuestion]?.options.map((opt: string) => (
+              <Label key={opt}>
+                <RadioGroupItem value={opt} /> {opt}
+              </Label>
+            ))}
           </RadioGroup>
 
-          <div className="flex justify-end">
-            <Button
-              onClick={handleNext}
-              disabled={
-                answers[questions[currentQuestion]?.id] === undefined
-              }
-            >
-              {currentQuestion < questions.length - 1
-                ? "Next Question"
-                : "Submit Assessment"}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
+          <Button onClick={handleNext}>
+            Next <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
         </CardContent>
       </Card>
 
-      {/* ================= RESULT MODAL ================= */}
-      <Dialog open={showResult} onOpenChange={setShowResult}>
-        <DialogContent className="max-h-[90vh] flex flex-col [&>button]:hidden">
+      {/* RESULT */}
+      <Dialog open={showResult}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-center text-xl">
-              Assessment Complete!
-            </DialogTitle>
-            <DialogDescription className="text-center">
-              Here are your results and recommendations.
-            </DialogDescription>
+            <DialogTitle>Result</DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto space-y-6 py-4 pr-2">
-            <div className="text-center">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-                <span className="text-3xl font-bold text-primary">
-                  {Math.round(
-                    (totalCorrect / questions.length) * 100
-                  )}
-                  %
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {totalCorrect} / {questions.length} correct answers
-              </p>
-            </div>
+          <p>Domains: {recommendedDomains.join(", ")}</p>
+          <p>Level: {skillLevel}</p>
 
-            <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-              <div className="rounded-xl bg-secondary/50 p-4 space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Domain-wise Scores
-                </p>
-
-                {Object.entries(domainScores).map(([domain, score]) => (
-                  <div
-                    key={domain}
-                    className="flex justify-between text-sm"
-                  >
-                    <span>{domain}</span>
-                    <span className="font-medium">
-                      {score}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-xl bg-secondary/50 p-4">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Recommended Domain
-                </p>
-                <p className="text-sm font-semibold mt-1">
-                  {recommendedDomains.join(", ")}
-                </p>
-                <p className="mt-2 text-sm font-medium">
-                  Skill Level: <span className="text-primary">{skillLevel}</span>
-                </p>
-              </div>
-            </div>
-
-            <Button
-              className="w-full"
-              onClick={() => {
-                setShowResult(false)
-                setStarted(false)
-                setCurrentQuestion(0)
-                setAnswers({})
-                setDomainScores({})
-                setRecommendedDomains([])
-                setTimeLeft(300)
-              }}
-            >
-              Back to Assessments
-            </Button>
+          {/* AI */}
+          <div className="p-3 border rounded">
+            <p className="text-xs">AI Recommendation</p>
+            <p>{aiRecommendation}</p>
           </div>
+
+          <Button onClick={resetAssessment}>Restart</Button>
         </DialogContent>
       </Dialog>
     </div>

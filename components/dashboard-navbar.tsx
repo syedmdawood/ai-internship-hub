@@ -54,7 +54,7 @@ export function DashboardNavbar() {
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">
               <Avatar className="h-9 w-9">
                 <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
-                  JD
+                  SD
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -62,8 +62,8 @@ export function DashboardNavbar() {
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium text-foreground">John Doe</p>
-                <p className="text-xs text-muted-foreground">john@example.com</p>
+                <p className="text-sm font-medium text-foreground">Syed Dawood</p>
+                <p className="text-xs text-muted-foreground">[EMAIL_ADDRESS]</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

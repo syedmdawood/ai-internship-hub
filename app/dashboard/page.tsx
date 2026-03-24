@@ -17,7 +17,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Welcome */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Welcome back, John</h1>
+        <h1 className="text-2xl font-bold text-foreground">Welcome back, Syed</h1>
         <p className="text-muted-foreground mt-1">{"Here's what's happening with your internship progress."}</p>
       </div>
 
