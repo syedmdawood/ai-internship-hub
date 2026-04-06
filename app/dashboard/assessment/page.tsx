@@ -1,210 +1,238 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabaseClient"
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
+} from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { ArrowRight, ArrowLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-import { Timer, ArrowRight } from "lucide-react"
-import { cn } from "@/lib/utils"
+type Domain = {
+  id: string;
+  name: string;
+};
+
+type Question = {
+  id: string;
+  question_text: string;
+  options: string[];
+  domains?: {
+    name: string;
+  } | null;
+};
+
+type AssessmentResult = {
+  recommendedDomains: string[];
+  skillLevel: string;
+  aiRecommendation: string;
+  totalScore: number;
+  totalQuestions: number;
+  percentageScore: number;
+  domainScores: Record<
+    string,
+    {
+      correct: number;
+      total: number;
+      percentage: number;
+    }
+  >;
+};
 
 export default function AssessmentPage() {
-  const [questions, setQuestions] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
 
-  const [started, setStarted] = useState(false)
-  const [currentQuestion, setCurrentQuestion] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, string>>({})
-  const [showResult, setShowResult] = useState(false)
+  const [loadingDomains, setLoadingDomains] = useState(true);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const [domainScores, setDomainScores] = useState<Record<string, number>>({})
-  const [recommendedDomains, setRecommendedDomains] = useState<string[]>([])
-  const [timeLeft, setTimeLeft] = useState(300)
-  const [skillLevel, setSkillLevel] = useState("")
-  const [showDomainSelect, setShowDomainSelect] = useState(false)
-  const [selectedDomains, setSelectedDomains] = useState<string[]>([])
-  const [aiRecommendation, setAiRecommendation] = useState("")
+  const [started, setStarted] = useState(false);
+  const [showDomainSelect, setShowDomainSelect] = useState(false);
+  const [selectedDomains, setSelectedDomains] = useState<string[]>([]);
 
-  // ================= FETCH QUESTIONS =================
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [timeLeft, setTimeLeft] = useState(300);
+
+  const [showResult, setShowResult] = useState(false);
+  const [result, setResult] = useState<AssessmentResult | null>(null);
+
+  useEffect(() => {
+    const loadDomains = async () => {
+      setLoadingDomains(true);
+
+      const { data, error } = await supabase
+        .from("domains")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+
+      if (!error && data) {
+        setDomains(data);
+      } else {
+        console.error(error);
+      }
+
+      setLoadingDomains(false);
+    };
+
+    loadDomains();
+  }, []);
+
   const fetchQuestions = async () => {
-    setLoading(true)
+    setLoadingQuestions(true);
 
-    const { data, error } = await supabase
-      .from("questions")
-      .select(`
-        id,
-        question_text,
-        options,
-        correct_answer,
-        domains(name)
-      `)
+    const { data, error } = await supabase.from("questions").select(`
+      id,
+      question_text,
+      options,
+      domains ( name )
+    `);
 
     if (!error && data) {
       const filtered = data.filter((q) =>
-        selectedDomains.includes(q.domains?.[0]?.name)
-      )
+        selectedDomains.includes(q.domains?.name || ""),
+      );
 
-      const grouped: Record<string, any[]> = {}
+      const parsed: Question[] = filtered.map((q) => {
+        let options = q.options;
 
-      filtered.forEach((q) => {
-        const domain = q.domains?.[0]?.name
-        if (!grouped[domain]) grouped[domain] = []
-        grouped[domain].push(q)
-      })
+        if (typeof options === "string") {
+          try {
+            options = JSON.parse(options);
+          } catch {
+            options = [];
+          }
+        }
 
-      let finalQuestions: any[] = []
+        return {
+          ...q,
+          options: Array.isArray(options) ? options : [],
+        };
+      });
 
-      Object.values(grouped).forEach((arr) => {
-        finalQuestions.push(...arr.slice(0, 5))
-      })
-
-      setQuestions(finalQuestions)
+      parsed.sort(() => Math.random() - 0.5);
+      setQuestions(parsed.slice(0, 30));
+    } else {
+      console.error(error);
     }
 
-    setLoading(false)
-  }
+    setLoadingQuestions(false);
+  };
 
   useEffect(() => {
-    if (started) {
-      fetchQuestions()
+    if (started && selectedDomains.length) {
+      fetchQuestions();
     }
-  }, [started])
+  }, [started, selectedDomains]);
 
-  // ================= TIMER =================
   useEffect(() => {
-    if (!started || showResult) return
-
-    if (timeLeft <= 0) {
-      evaluateAssessment()
-      return
-    }
+    if (!started || showResult || submitting) return;
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 1)
-    }, 1000)
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleSubmitAssessment();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-    return () => clearInterval(timer)
-  }, [started, timeLeft, showResult])
+    return () => clearInterval(timer);
+  }, [started, showResult, submitting]);
 
-  // ================= HANDLE ANSWER =================
   const handleAnswer = (questionId: string, selectedOption: string) => {
     setAnswers((prev) => ({
       ...prev,
       [questionId]: selectedOption,
-    }))
-  }
+    }));
+  };
 
-  // ================= NEXT =================
   const handleNext = () => {
     if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion((prev) => prev + 1)
-    } else {
-      evaluateAssessment()
+      setCurrentQuestion((prev) => prev + 1);
+      return;
     }
-  }
 
-  // ================= EVALUATION =================
-  const evaluateAssessment = async () => {
-    let scores: Record<string, number> = {}
+    handleSubmitAssessment();
+  };
 
-    questions.forEach((q) => {
-      const domain = q.domains?.[0]?.name
-      if (!scores[domain]) scores[domain] = 0
+  const handlePrevious = () => {
+    if (currentQuestion > 0) {
+      setCurrentQuestion((prev) => prev - 1);
+    }
+  };
 
-      if (answers[q.id] === q.correct_answer) {
-        scores[domain]++
-      }
-    })
-
-    setDomainScores(scores)
-
-    const values = Object.values(scores)
-    const maxScore = Math.max(...values)
-
-    let recommended: string[] =
-      maxScore === 0
-        ? ["Beginner Freelancing Path"]
-        : Object.keys(scores).filter((d) => scores[d] === maxScore)
-
-    setRecommendedDomains(recommended)
-
-    const totalScore = values.reduce((a, b) => a + b, 0)
-    const percentage = (totalScore / questions.length) * 100
-
-    let level =
-      percentage >= 80
-        ? "Advanced"
-        : percentage >= 50
-          ? "Intermediate"
-          : "Beginner"
-
-    setSkillLevel(level)
-
-    // ================= AI CALL =================
-    let aiText = "AI recommendation not available." // ✅ DEFINE HERE
+  const handleSubmitAssessment = async () => {
+    if (submitting) return;
+    setSubmitting(true);
 
     try {
-      const res = await fetch("/api/recommend", {
+      // ✅ GET CURRENT USER SESSION
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        throw new Error("User not authenticated");
+      }
+
+      // ✅ CALL YOUR API WITH TOKEN
+      const res = await fetch("/api/assessment/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`, // ⭐ IMPORTANT
         },
-        body: JSON.stringify({ scores }),
-      })
+        body: JSON.stringify({
+          selectedDomains,
+          answers,
+        }),
+      });
 
-      const aiData = await res.json()
-      aiText = aiData.result || "No AI response"
+      const data = await res.json();
 
-      setAiRecommendation(aiText)
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit assessment");
+      }
 
-    } catch (err) {
-      console.error("AI Error:", err)
-      aiText = "AI recommendation not available."
-      setAiRecommendation(aiText)
+      // ✅ SET RESULT FROM BACKEND
+      setResult(data);
+      setShowResult(true);
+    } catch (error) {
+      console.error("Assessment submit failed:", error);
+    } finally {
+      setSubmitting(false);
     }
+  };
 
-    // ================= SAVE =================
-    const { data: userData } = await supabase.auth.getUser()
-
-    if (userData?.user) {
-      await supabase.from("assessment_results").insert({
-        user_id: userData.user.id,
-        domain_scores: scores,
-        recommended_domain: recommended,
-        total_score: totalScore,
-        skill_level: level,
-        ai_recommendation: aiText,
-      })
-    }
-    setShowResult(true)
-  }
-
-  // ================= RESET =================
   const resetAssessment = () => {
-    setShowResult(false)
-    setStarted(false)
-    setCurrentQuestion(0)
-    setAnswers({})
-    setDomainScores({})
-    setRecommendedDomains([])
-    setSelectedDomains([])
-    setAiRecommendation("")
-    setTimeLeft(300)
-  }
+    setStarted(false);
+    setShowDomainSelect(false);
+    setSelectedDomains([]);
+    setQuestions([]);
+    setCurrentQuestion(0);
+    setAnswers({});
+    setTimeLeft(300);
+    setResult(null);
+    setShowResult(false);
+  };
 
-  // ================= UI =================
   if (!started) {
     return (
       <div className="space-y-6">
@@ -214,52 +242,62 @@ export default function AssessmentPage() {
           <CardHeader>
             <CardTitle>Freelancing Skill Assessment</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Button onClick={() => setShowDomainSelect(true)} className="w-full">
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Select up to 3 domains and take a timed assessment to get your
+              recommended freelancing path.
+            </p>
+
+            <Button
+              onClick={() => setShowDomainSelect(true)}
+              className="w-full"
+              disabled={loadingDomains}
+            >
               Start Assessment <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </CardContent>
         </Card>
 
-        {/* DOMAIN SELECT */}
         <Dialog open={showDomainSelect} onOpenChange={setShowDomainSelect}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Select Domains</DialogTitle>
-              <DialogDescription>Max 3</DialogDescription>
+              <DialogDescription>Choose up to 3 domains</DialogDescription>
             </DialogHeader>
 
             <div className="grid grid-cols-2 gap-3">
-              {["Frontend", "Backend", "Python", "Content Writing", "Graphic Design"].map((domain) => {
-                const selected = selectedDomains.includes(domain)
+              {domains.map((domain) => {
+                const selected = selectedDomains.includes(domain.name);
 
                 return (
                   <div
-                    key={domain}
+                    key={domain.id}
                     onClick={() => {
                       if (selected) {
-                        setSelectedDomains(selectedDomains.filter(d => d !== domain))
+                        setSelectedDomains((prev) =>
+                          prev.filter((d) => d !== domain.name),
+                        );
                       } else if (selectedDomains.length < 3) {
-                        setSelectedDomains([...selectedDomains, domain])
+                        setSelectedDomains((prev) => [...prev, domain.name]);
                       }
                     }}
                     className={cn(
-                      "cursor-pointer rounded-xl border p-4",
-                      selected && "border-primary bg-primary/10"
+                      "cursor-pointer rounded-xl border p-4 text-center transition",
+                      selected && "border-primary bg-primary/10",
                     )}
                   >
-                    {domain}
+                    {domain.name}
                   </div>
-                )
+                );
               })}
             </div>
 
             <Button
-              className="w-full mt-4"
+              className="mt-4 w-full"
               disabled={!selectedDomains.length}
               onClick={() => {
-                setShowDomainSelect(false)
-                setStarted(true)
+                setShowDomainSelect(false);
+                setStarted(true);
               }}
             >
               Start Test
@@ -267,58 +305,94 @@ export default function AssessmentPage() {
           </DialogContent>
         </Dialog>
       </div>
-    )
+    );
   }
 
-  // ================= QUESTIONS =================
+  if (loadingQuestions) return <p>Loading questions...</p>;
+  if (!questions.length) return <p>No questions found for selected domains.</p>;
+
+  const currentQuestionId = questions[currentQuestion]?.id;
+  const hasAnsweredCurrent = !!answers[currentQuestionId];
+
   return (
     <div className="space-y-6">
-      <Badge>{timeLeft}s</Badge>
+      <div className="flex items-center justify-between gap-4">
+        <Badge className="px-4 py-2 text-lg">{timeLeft}s</Badge>
+        <Badge variant="outline">
+          Question {currentQuestion + 1} of {questions.length}
+        </Badge>
+      </div>
 
       <Progress value={((currentQuestion + 1) / questions.length) * 100} />
 
-      <Card>
-        <CardContent className="p-6 space-y-6">
-          <h2>{questions[currentQuestion]?.question_text}</h2>
+      <Card className="shadow-lg">
+        <CardContent className="space-y-6 p-6">
+          <h2 className="text-lg font-semibold">
+            {questions[currentQuestion]?.question_text}
+          </h2>
 
           <RadioGroup
-            value={answers[questions[currentQuestion]?.id]}
-            onValueChange={(val) =>
-              handleAnswer(questions[currentQuestion]?.id, val)
-            }
+            value={answers[currentQuestionId]}
+            onValueChange={(val) => handleAnswer(currentQuestionId, val)}
           >
-            {questions[currentQuestion]?.options.map((opt: string) => (
-              <Label key={opt}>
-                <RadioGroupItem value={opt} /> {opt}
+            {questions[currentQuestion]?.options.map((opt) => (
+              <Label
+                key={opt}
+                className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 hover:bg-muted"
+              >
+                <RadioGroupItem value={opt} />
+                {opt}
               </Label>
             ))}
           </RadioGroup>
 
-          <Button onClick={handleNext}>
-            Next <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={currentQuestion === 0 || submitting}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Previous
+            </Button>
+
+            <Button
+              onClick={handleNext}
+              disabled={!hasAnsweredCurrent || submitting}
+            >
+              {currentQuestion === questions.length - 1 ? "Submit" : "Next"}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      {/* RESULT */}
       <Dialog open={showResult}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Result</DialogTitle>
+            <DialogTitle>Assessment Result</DialogTitle>
           </DialogHeader>
 
-          <p>Domains: {recommendedDomains.join(", ")}</p>
-          <p>Level: {skillLevel}</p>
+          <p>
+            <strong>Recommended Domains:</strong>{" "}
+            {result?.recommendedDomains.join(", ")}
+          </p>
+          <p>
+            <strong>Skill Level:</strong> {result?.skillLevel}
+          </p>
+          <p>
+            <strong>Score:</strong> {result?.totalScore} /{" "}
+            {result?.totalQuestions} ({result?.percentageScore}%)
+          </p>
 
-          {/* AI */}
-          <div className="p-3 border rounded">
-            <p className="text-xs">AI Recommendation</p>
-            <p>{aiRecommendation}</p>
+          <div className="rounded border p-3">
+            <p className="text-xs font-medium">AI Recommendation</p>
+            <p>{result?.aiRecommendation}</p>
           </div>
 
           <Button onClick={resetAssessment}>Restart</Button>
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
