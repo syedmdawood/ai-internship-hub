@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 import { Button } from "@/components/ui/button";
@@ -33,22 +33,114 @@ type Question = {
   } | null;
 };
 
+type DomainScoreMap = Record<
+  string,
+  {
+    correct: number;
+    total: number;
+    percentage: number;
+  }
+>;
+
 type AssessmentResult = {
-  recommendedDomains: string[];
+  recommendedDomains: string;
   skillLevel: string;
   aiRecommendation: string;
   totalScore: number;
   totalQuestions: number;
   percentageScore: number;
-  domainScores: Record<
-    string,
-    {
-      correct: number;
-      total: number;
-      percentage: number;
-    }
-  >;
+  domainScores: DomainScoreMap;
 };
+
+type AssessmentResultRow = {
+  id: string;
+  user_id: string;
+  domain_scores: DomainScoreMap | null;
+  recommended_domain: unknown;
+  total_score: number | null;
+  attempted_at: string | null;
+  skill_level: string | null;
+  selected_domains: unknown;
+  total_questions: number | null;
+  percentage_score: number | string | null;
+  ai_recommendation: string | null;
+  secondary_recommendations: unknown;
+  completed_at: string | null;
+  status: string;
+};
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item)).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item)).filter(Boolean);
+      }
+    } catch {
+      return value ? [value] : [];
+    }
+  }
+
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+
+    if (Array.isArray(obj.domains)) {
+      return obj.domains.map((item) => String(item)).filter(Boolean);
+    }
+
+    if (typeof obj.name === "string") {
+      return [obj.name];
+    }
+
+    if (typeof obj.primary === "string") {
+      return [obj.primary];
+    }
+  }
+
+  return [];
+}
+
+function normalizeDomainScores(value: unknown): DomainScoreMap {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const raw = value as Record<string, unknown>;
+  const normalized: DomainScoreMap = {};
+
+  for (const [key, score] of Object.entries(raw)) {
+    if (score && typeof score === "object" && !Array.isArray(score)) {
+      const s = score as Record<string, unknown>;
+
+      normalized[key] = {
+        correct: Number(s.correct ?? 0),
+        total: Number(s.total ?? 0),
+        percentage: Number(s.percentage ?? 0),
+      };
+    }
+  }
+
+  return normalized;
+}
+
+function mapDbRowToUiResult(row: AssessmentResultRow): AssessmentResult {
+  const primaryDomains = toStringArray(row.recommended_domain);
+  const secondaryDomains = toStringArray(row.secondary_recommendations);
+
+  return {
+    recommendedDomains: primaryDomains,
+    skillLevel: row.skill_level || "Not available",
+    aiRecommendation: row.ai_recommendation || "No AI recommendation available.",
+    totalScore: Number(row.total_score ?? 0),
+    totalQuestions: Number(row.total_questions ?? 0),
+    percentageScore: Number(row.percentage_score ?? 0),
+    domainScores: normalizeDomainScores(row.domain_scores),
+  };
+}
 
 export default function AssessmentPage() {
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -57,6 +149,13 @@ export default function AssessmentPage() {
   const [loadingDomains, setLoadingDomains] = useState(true);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [checkingExistingResult, setCheckingExistingResult] = useState(true);
+
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [existingResult, setExistingResult] = useState<AssessmentResult | null>(
+    null,
+  );
 
   const [started, setStarted] = useState(false);
   const [showDomainSelect, setShowDomainSelect] = useState(false);
@@ -69,26 +168,89 @@ export default function AssessmentPage() {
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<AssessmentResult | null>(null);
 
+  const displayedResult = useMemo(
+    () => result || existingResult,
+    [result, existingResult],
+  );
+
   useEffect(() => {
-    const loadDomains = async () => {
-      setLoadingDomains(true);
+    const initPage = async () => {
+      try {
+        setCheckingExistingResult(true);
+        setLoadingDomains(true);
 
-      const { data, error } = await supabase
-        .from("domains")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("display_order", { ascending: true });
+        const [
+          authResponse,
+          domainsResponse,
+        ] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase
+            .from("domains")
+            .select("id, name")
+            .eq("is_active", true)
+            .order("display_order", { ascending: true }),
+        ]);
 
-      if (!error && data) {
-        setDomains(data);
-      } else {
-        console.error(error);
+        const currentUser = authResponse.data.user;
+
+        if (authResponse.error || !currentUser) {
+          setIsAuthenticated(false);
+          setUserId(null);
+          setExistingResult(null);
+        } else {
+          setIsAuthenticated(true);
+          setUserId(currentUser.id);
+
+          const { data: latestResult, error: resultError } = await supabase
+            .from("assessment_results")
+            .select(
+              `
+              id,
+              user_id,
+              domain_scores,
+              recommended_domain,
+              total_score,
+              attempted_at,
+              skill_level,
+              selected_domains,
+              total_questions,
+              percentage_score,
+              ai_recommendation,
+              secondary_recommendations,
+              completed_at,
+              status
+            `,
+            )
+            .eq("user_id", currentUser.id)
+            .eq("status", "completed")
+            .order("completed_at", { ascending: false })
+            .limit(1)
+            .maybeSingle<AssessmentResultRow>();
+
+          if (resultError) {
+            console.error("Failed to load existing assessment:", resultError);
+            setExistingResult(null);
+          } else if (latestResult) {
+            setExistingResult(mapDbRowToUiResult(latestResult));
+          } else {
+            setExistingResult(null);
+          }
+        }
+
+        if (!domainsResponse.error && domainsResponse.data) {
+          setDomains(domainsResponse.data);
+        } else {
+          console.error(domainsResponse.error);
+        }
+      } catch (error) {
+        console.error("Initialization failed:", error);
+      } finally {
+        setCheckingExistingResult(false);
+        setLoadingDomains(false);
       }
-
-      setLoadingDomains(false);
     };
 
-    loadDomains();
+    initPage();
   }, []);
 
   const fetchQuestions = async () => {
@@ -139,13 +301,13 @@ export default function AssessmentPage() {
   }, [started, selectedDomains]);
 
   useEffect(() => {
-    if (!started || showResult || submitting) return;
+    if (!started || showResult || submitting || questions.length === 0) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleSubmitAssessment();
+          void handleSubmitAssessment();
           return 0;
         }
         return prev - 1;
@@ -153,7 +315,7 @@ export default function AssessmentPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [started, showResult, submitting]);
+  }, [started, showResult, submitting, questions.length]);
 
   const handleAnswer = (questionId: string, selectedOption: string) => {
     setAnswers((prev) => ({
@@ -168,7 +330,7 @@ export default function AssessmentPage() {
       return;
     }
 
-    handleSubmitAssessment();
+    void handleSubmitAssessment();
   };
 
   const handlePrevious = () => {
@@ -177,27 +339,34 @@ export default function AssessmentPage() {
     }
   };
 
+  const handleStartAssessment = () => {
+    if (!isAuthenticated) {
+      alert("Please login first to start the assessment.");
+      return;
+    }
+
+    setShowDomainSelect(true);
+  };
+
   const handleSubmitAssessment = async () => {
     if (submitting) return;
     setSubmitting(true);
 
     try {
-      // ✅ GET CURRENT USER SESSION
       const {
         data: { session },
         error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (sessionError || !session?.access_token) {
+      if (sessionError || !session?.access_token || !userId) {
         throw new Error("User not authenticated");
       }
 
-      // ✅ CALL YOUR API WITH TOKEN
       const res = await fetch("/api/assessment/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`, // ⭐ IMPORTANT
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           selectedDomains,
@@ -211,8 +380,19 @@ export default function AssessmentPage() {
         throw new Error(data.error || "Failed to submit assessment");
       }
 
-      // ✅ SET RESULT FROM BACKEND
-      setResult(data);
+      const submittedResult: AssessmentResult = {
+        recommendedDomains: data.recommendedDomains || [],
+        skillLevel: data.skillLevel || "Not available",
+        aiRecommendation:
+          data.aiRecommendation || "No AI recommendation available.",
+        totalScore: Number(data.totalScore ?? 0),
+        totalQuestions: Number(data.totalQuestions ?? 0),
+        percentageScore: Number(data.percentageScore ?? 0),
+        domainScores: normalizeDomainScores(data.domainScores),
+      };
+
+      setResult(submittedResult);
+      setExistingResult(submittedResult);
       setShowResult(true);
     } catch (error) {
       console.error("Assessment submit failed:", error);
@@ -233,6 +413,56 @@ export default function AssessmentPage() {
     setShowResult(false);
   };
 
+  const startTestAgain = () => {
+    setExistingResult(null);
+    setResult(null);
+    resetAssessment();
+    setShowDomainSelect(true);
+  };
+
+  if (checkingExistingResult || loadingDomains) {
+    return <p>Loading assessment...</p>;
+  }
+
+  if (!started && displayedResult) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">Skill Assessment</h1>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Previous Assessment Result</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p>
+              <strong>Recommended Domain:</strong>{" "}
+              {displayedResult.recommendedDomains}
+            </p>
+
+            <p>
+              <strong>Skill Level:</strong> {displayedResult.skillLevel}
+            </p>
+
+            <p>
+              <strong>Score:</strong> {displayedResult.totalScore} /{" "}
+              {displayedResult.totalQuestions} ({displayedResult.percentageScore}
+              %)
+            </p>
+
+            <div className="rounded border p-3">
+              <p className="text-xs font-medium">AI Recommendation</p>
+              <p>{displayedResult.aiRecommendation}</p>
+            </div>
+
+            <Button onClick={startTestAgain} className="w-full">
+              Start Test Again <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!started) {
     return (
       <div className="space-y-6">
@@ -249,12 +479,18 @@ export default function AssessmentPage() {
             </p>
 
             <Button
-              onClick={() => setShowDomainSelect(true)}
+              onClick={handleStartAssessment}
               className="w-full"
               disabled={loadingDomains}
             >
               Start Assessment <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
+
+            {!isAuthenticated && (
+              <p className="text-sm text-red-500">
+                Please login first to take the assessment.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -367,7 +603,7 @@ export default function AssessmentPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={showResult}>
+      <Dialog open={showResult} onOpenChange={setShowResult}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assessment Result</DialogTitle>
@@ -381,8 +617,8 @@ export default function AssessmentPage() {
             <strong>Skill Level:</strong> {result?.skillLevel}
           </p>
           <p>
-            <strong>Score:</strong> {result?.totalScore} /{" "}
-            {result?.totalQuestions} ({result?.percentageScore}%)
+            <strong>Score:</strong> {result?.totalScore} / {result?.totalQuestions} (
+            {result?.percentageScore}%)
           </p>
 
           <div className="rounded border p-3">
@@ -390,7 +626,7 @@ export default function AssessmentPage() {
             <p>{result?.aiRecommendation}</p>
           </div>
 
-          <Button onClick={resetAssessment}>Restart</Button>
+          <Button onClick={startTestAgain}>Start Test Again</Button>
         </DialogContent>
       </Dialog>
     </div>
