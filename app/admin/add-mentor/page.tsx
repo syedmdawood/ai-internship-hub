@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import { UserCheck, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -68,11 +69,26 @@ export default function AdminMentorsPage() {
   }
 
   return (
-    <div className="p-6">
-      <Card className="shadow-lg border-border/50">
+    <div className="relative overflow-hidden">
+      <div className="pointer-events-none absolute -left-16 top-0 h-48 w-48 rounded-full bg-cyan-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute -right-16 top-20 h-52 w-52 rounded-full bg-indigo-500/15 blur-3xl" />
+
+      <div className="mb-6 rounded-2xl border border-white/10 bg-linear-to-r from-slate-900/95 via-slate-900/85 to-cyan-900/35 px-4 py-5 shadow-xl shadow-black/20 sm:px-6 sm:py-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-300/10">
+            <UserCheck className="h-5 w-5 text-cyan-300" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-100 sm:text-2xl">Manage Mentors</h1>
+            <p className="text-sm text-slate-300">Invite mentors to guide learners effectively.</p>
+          </div>
+        </div>
+      </div>
+
+      <Card className="border-white/10 bg-white/4 shadow-lg shadow-black/20 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle>Manage Mentors</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-slate-100">Invite New Mentor</CardTitle>
+          <CardDescription className="text-slate-300">
             Invite mentors to join the platform
           </CardDescription>
         </CardHeader>
@@ -80,25 +96,28 @@ export default function AdminMentorsPage() {
         <CardContent>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button>Add Mentor</Button>
+              <Button className="bg-cyan-400 text-slate-950 hover:bg-cyan-300">
+                <Plus className="mr-2 h-4 w-4" /> Add Mentor
+              </Button>
             </DialogTrigger>
 
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md border-white/15 bg-slate-900/95 text-slate-100 shadow-2xl shadow-black/40">
               <DialogHeader>
-                <DialogTitle>Invite Mentor</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-slate-100">Invite Mentor</DialogTitle>
+                <DialogDescription className="text-slate-300">
                   Enter the mentor's email address below
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Email Address</Label>
+                  <Label className="text-slate-200">Email Address</Label>
                   <Input
                     type="email"
                     placeholder="mentor@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className="border-white/15 bg-slate-800 text-slate-100 placeholder:text-slate-400"
                   />
                 </div>
 
@@ -107,7 +126,7 @@ export default function AdminMentorsPage() {
                 )}
 
                 {message && (
-                  <p className="text-sm text-green-600">{message}</p>
+                  <p className="text-sm text-emerald-300">{message}</p>
                 )}
               </div>
 
@@ -115,6 +134,7 @@ export default function AdminMentorsPage() {
                 <Button
                   variant="outline"
                   onClick={() => setOpen(false)}
+                  className="border-white/15 bg-transparent text-slate-200 hover:bg-white/10 hover:text-slate-100"
                 >
                   Cancel
                 </Button>
@@ -122,6 +142,7 @@ export default function AdminMentorsPage() {
                 <Button
                   onClick={handleInvite}
                   disabled={loading}
+                  className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
                 >
                   {loading ? "Sending..." : "Send Invitation"}
                 </Button>

@@ -44,26 +44,30 @@ const features = [
 
 export default function Features() {
   return (
-    <section id="features" className="py-20 bg-card">
+    <section id="features" className="py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <Badge variant="secondary" className="mb-4">Features</Badge>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl text-balance">
+          <Badge className="mb-4 border border-indigo-300/30 bg-indigo-400/10 text-indigo-200 hover:bg-indigo-400/20">Features</Badge>
+          <h2 className="text-balance text-3xl font-bold tracking-tight text-slate-100 sm:text-4xl">
             Everything you need to become a successful freelancer
           </h2>
-          <p className="mt-4 text-muted-foreground leading-relaxed">
+          <p className="mt-4 leading-relaxed text-slate-300">
             Our AI-powered platform guides you from beginner to professional with structured internships and real-time feedback.
           </p>
         </div>
         <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => (
-            <Card key={feature.title} className="border-border/50 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
+          {features.map((feature, idx) => (
+            <Card
+              key={feature.title}
+              className="group border-white/10 bg-white/4 shadow-lg shadow-black/20 transition-all hover:-translate-y-1 hover:border-cyan-300/35 hover:bg-white/6"
+              style={{ animationDelay: `${idx * 90}ms` }}
+            >
               <CardContent className="p-6">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 group-hover:bg-primary/15 transition-colors">
-                  <feature.icon className="h-5 w-5 text-primary" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-300/10 transition-colors group-hover:bg-cyan-300/20">
+                  <feature.icon className="h-5 w-5 text-cyan-300" />
                 </div>
-                <h3 className="mt-4 font-semibold text-foreground">{feature.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                <h3 className="mt-4 font-semibold text-slate-100">{feature.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">{feature.description}</p>
               </CardContent>
             </Card>
           ))}

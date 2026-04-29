@@ -161,32 +161,42 @@ export default function LoginPage() {
 
   if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Checking authentication...</p>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-16 top-10 h-56 w-56 rounded-full bg-cyan-500/20 blur-3xl" />
+          <div className="absolute right-0 top-1/3 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+        </div>
+        <p className="relative text-slate-300">Checking authentication...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-8 sm:py-12">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-16 top-10 h-56 w-56 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="absolute right-0 top-1/3 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute bottom-6 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-emerald-500/15 blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-md">
         <div className="mb-8 text-center">
           <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-              <Brain className="h-6 w-6 text-primary-foreground" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-cyan-400 to-blue-500 shadow-lg shadow-cyan-500/25">
+              <Brain className="h-6 w-6 text-slate-950" />
             </div>
-            <span className="text-xl font-bold text-foreground">
+            <span className="text-xl font-bold text-slate-100">
               InternHub AI
             </span>
           </Link>
         </div>
 
-        <Card className="border-border/50 shadow-lg">
+        <Card className="border-white/10 bg-white/4 shadow-2xl shadow-black/30 backdrop-blur-md">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl font-bold text-foreground">
+            <CardTitle className="text-xl font-bold text-slate-100">
               Welcome back
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-slate-300">
               Sign in to your account to continue
             </CardDescription>
           </CardHeader>
@@ -194,7 +204,7 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             <form className="space-y-4" onSubmit={handleLogin}>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-slate-200">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -202,15 +212,16 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  className="border-white/15 bg-slate-900/60 text-slate-100 placeholder:text-slate-400"
                 />
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password" className="text-slate-200">Password</Label>
                   <Link
                     href="/forgot-password"
-                    className="text-xs text-primary hover:underline"
+                    className="text-xs text-cyan-300 hover:text-cyan-200 hover:underline"
                   >
                     Forgot password?
                   </Link>
@@ -224,12 +235,13 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    className="border-white/15 bg-slate-900/60 text-slate-100 placeholder:text-slate-400"
                   />
 
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -246,7 +258,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full bg-cyan-400 text-slate-950 hover:bg-cyan-300"
                 size="lg"
                 disabled={loading}
               >
@@ -254,11 +266,11 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm text-slate-300">
               Don&apos;t have an account?{" "}
               <Link
                 href="/register"
-                className="text-primary font-medium hover:underline"
+                className="font-medium text-cyan-300 hover:text-cyan-200 hover:underline"
               >
                 Sign up
               </Link>

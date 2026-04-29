@@ -1,7 +1,5 @@
 "use client"
 
-import { cn } from "@/lib/utils"
-
 interface ProgressBarProps {
   value: number
   max?: number
@@ -21,16 +19,16 @@ export function ProgressBar({ value, max = 100, label, showValue = true, size = 
   }
 
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div className={`space-y-1.5 ${className ?? ""}`}>
       {(label || showValue) && (
         <div className="flex items-center justify-between text-sm">
-          {label && <span className="font-medium text-foreground">{label}</span>}
-          {showValue && <span className="text-muted-foreground">{Math.round(percentage)}%</span>}
+          {label && <span className="font-medium text-slate-200">{label}</span>}
+          {showValue && <span className="text-slate-400">{Math.round(percentage)}%</span>}
         </div>
       )}
-      <div className={cn("w-full rounded-full bg-secondary overflow-hidden", sizeClasses[size])}>
+      <div className={`w-full overflow-hidden rounded-full bg-slate-800/90 ring-1 ring-white/10 ${sizeClasses[size]}`}>
         <div
-          className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+          className="h-full rounded-full bg-linear-to-r from-cyan-300 via-sky-300 to-emerald-300 transition-all duration-500 ease-out"
           style={{ width: `${percentage}%` }}
         />
       </div>

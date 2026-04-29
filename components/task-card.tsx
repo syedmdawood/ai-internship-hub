@@ -1,9 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Calendar, Star, ArrowRight } from "lucide-react"
 
 interface TaskCardProps {
@@ -18,45 +15,45 @@ interface TaskCardProps {
 }
 
 const difficultyColors: Record<string, string> = {
-  Beginner: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  Intermediate: "bg-amber-100 text-amber-700 border-amber-200",
-  Advanced: "bg-red-100 text-red-700 border-red-200",
+  Beginner: "border-emerald-300/35 bg-emerald-400/10 text-emerald-200",
+  Intermediate: "border-amber-300/35 bg-amber-400/10 text-amber-200",
+  Advanced: "border-rose-300/35 bg-rose-400/10 text-rose-200",
 }
 
 const statusColors: Record<string, string> = {
-  available: "bg-primary/10 text-primary border-primary/20",
-  "in-progress": "bg-amber-100 text-amber-700 border-amber-200",
-  completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  available: "border-cyan-300/35 bg-cyan-400/10 text-cyan-200",
+  "in-progress": "border-amber-300/35 bg-amber-400/10 text-amber-200",
+  completed: "border-emerald-300/35 bg-emerald-400/10 text-emerald-200",
 }
 
 export function TaskCard({ id, title, description, difficulty, domain, deadline, status, points }: TaskCardProps) {
   return (
-    <Card className="border-border/50 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
-      <CardHeader className="pb-3">
+    <article className="group flex h-full flex-col rounded-2xl border border-white/10 bg-white/4 shadow-lg shadow-black/20 transition-all hover:-translate-y-0.5 hover:border-cyan-300/30 hover:shadow-xl">
+      <div className="p-5 pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="outline" className={difficultyColors[difficulty]}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${difficultyColors[difficulty]}`}>
                 {difficulty}
-              </Badge>
-              <Badge variant="outline" className="bg-secondary text-secondary-foreground border-border">
+              </span>
+              <span className="inline-flex rounded-full border border-white/15 bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-200">
                 {domain}
-              </Badge>
+              </span>
             </div>
-            <h3 className="font-semibold text-foreground leading-tight group-hover:text-primary transition-colors">
+            <h3 className="leading-tight font-semibold text-slate-100 transition-colors group-hover:text-cyan-300">
               {title}
             </h3>
           </div>
-          <Badge variant="outline" className={statusColors[status]}>
+          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusColors[status]}`}>
             {status === "in-progress" ? "In Progress" : status.charAt(0).toUpperCase() + status.slice(1)}
-          </Badge>
+          </span>
         </div>
-      </CardHeader>
-      <CardContent className="pb-3">
-        <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
-      </CardContent>
-      <CardFooter className="pt-3 border-t border-border/50 flex items-center justify-between">
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      </div>
+      <div className="px-5 pb-3">
+        <p className="line-clamp-2 text-sm text-slate-300">{description}</p>
+      </div>
+      <div className="mt-auto flex items-center justify-between border-t border-white/10 px-5 pb-4 pt-3">
+        <div className="flex items-center gap-4 text-xs text-slate-400">
           <span className="flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" />
             {new Date(deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -66,12 +63,13 @@ export function TaskCard({ id, title, description, difficulty, domain, deadline,
             {points} pts
           </span>
         </div>
-        <Link href={`/dashboard/tasks/${id}`}>
-          <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80 hover:bg-primary/5">
-            View <ArrowRight className="ml-1 h-3.5 w-3.5" />
-          </Button>
+        <Link
+          href={`/dashboard/tasks/${id}`}
+          className="inline-flex items-center rounded-md px-2.5 py-1.5 text-sm font-medium text-cyan-300 transition hover:bg-cyan-400/10 hover:text-cyan-200"
+        >
+          View <ArrowRight className="ml-1 h-3.5 w-3.5" />
         </Link>
-      </CardFooter>
-    </Card>
+      </div>
+    </article>
   )
 }

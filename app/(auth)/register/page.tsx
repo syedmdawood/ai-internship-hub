@@ -133,73 +133,86 @@ export default function RegisterPage() {
 
   if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Checking authentication...</p>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-16 top-10 h-56 w-56 rounded-full bg-cyan-500/20 blur-3xl" />
+          <div className="absolute right-0 top-1/3 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+        </div>
+        <p className="relative text-slate-300">Checking authentication...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-md">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-8 sm:py-12">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-16 top-10 h-56 w-56 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="absolute right-0 top-1/3 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute bottom-6 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-emerald-500/15 blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-md">
         <div className="mb-8 text-center">
           <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-              <Brain className="h-6 w-6 text-primary-foreground" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-cyan-400 to-blue-500 shadow-lg shadow-cyan-500/25">
+              <Brain className="h-6 w-6 text-slate-950" />
             </div>
-            <span className="text-xl font-bold text-foreground">
+            <span className="text-xl font-bold text-slate-100">
               InternHub AI
             </span>
           </Link>
         </div>
 
-        <Card className="border-border/50 shadow-lg">
+        <Card className="border-white/10 bg-white/4 shadow-2xl shadow-black/30 backdrop-blur-md">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl font-bold text-foreground">
+            <CardTitle className="text-xl font-bold text-slate-100">
               Create your account
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-slate-300">
               Start your freelancing journey today
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
             <form className="space-y-4" onSubmit={handleRegister}>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
+                  <Label htmlFor="firstName" className="text-slate-200">First Name</Label>
                   <Input
                     id="firstName"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     required
+                    className="border-white/15 bg-slate-900/60 text-slate-100 placeholder:text-slate-400"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
+                  <Label htmlFor="lastName" className="text-slate-200">Last Name</Label>
                   <Input
                     id="lastName"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     required
+                    className="border-white/15 bg-slate-900/60 text-slate-100 placeholder:text-slate-400"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-slate-200">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  className="border-white/15 bg-slate-900/60 text-slate-100 placeholder:text-slate-400"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-slate-200">Password</Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -207,11 +220,12 @@ export default function RegisterPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    className="border-white/15 bg-slate-900/60 text-slate-100 placeholder:text-slate-400"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -223,7 +237,7 @@ export default function RegisterPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword" className="text-slate-200">Confirm Password</Label>
                 <div className="relative">
                   <Input
                     id="confirmPassword"
@@ -231,11 +245,12 @@ export default function RegisterPage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
+                    className="border-white/15 bg-slate-900/60 text-slate-100 placeholder:text-slate-400"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                   >
                     {showConfirmPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -253,11 +268,11 @@ export default function RegisterPage() {
               )}
 
               {error && <p className="text-sm text-red-500">{error}</p>}
-              {message && <p className="text-sm text-green-600">{message}</p>}
+              {message && <p className="text-sm text-emerald-300">{message}</p>}
 
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full bg-cyan-400 text-slate-950 hover:bg-cyan-300"
                 size="lg"
                 disabled={loading || !passwordsValid}
               >
@@ -265,11 +280,11 @@ export default function RegisterPage() {
               </Button>
             </form>
 
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm text-slate-300">
               Already have an account?{" "}
               <Link
                 href="/login"
-                className="text-primary font-medium hover:underline"
+                className="font-medium text-cyan-300 hover:text-cyan-200 hover:underline"
               >
                 Sign in
               </Link>

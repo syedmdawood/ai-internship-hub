@@ -13,6 +13,7 @@ export default function AdminLayout({
 
   const router = useRouter()
   const [checkingAuth, setCheckingAuth] = useState(true)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   useEffect(() => {
     const checkSession = async () => {
@@ -53,18 +54,18 @@ export default function AdminLayout({
 
   if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="dark min-h-screen flex items-center justify-center bg-background text-foreground">
         <p>Checking authentication...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <MentorSidebar />
-      <div className="ml-64">
-        <MentorNavbar />
-        <main className="p-6">{children}</main>
+    <div className="dark min-h-screen bg-background text-foreground">
+      <MentorSidebar mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
+      <div className="md:ml-64">
+        <MentorNavbar onOpenMobileMenu={() => setMobileNavOpen(true)} />
+        <main className="p-4 sm:p-6">{children}</main>
       </div>
     </div>
   )

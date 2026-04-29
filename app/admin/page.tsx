@@ -63,30 +63,31 @@ export default function AdminPage() {
   )
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/50 bg-background/80 backdrop-blur-lg px-6">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/10 bg-slate-950/80 px-4 backdrop-blur-lg sm:px-6">
         <div className="flex items-center gap-3">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+          {/* <Link href="/">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-200 hover:bg-white/10 hover:text-white">
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Back to home</span>
             </Button>
-          </Link>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Brain className="h-5 w-5 text-primary-foreground" />
+          </Link> */}
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-cyan-400 to-blue-500 shadow-lg shadow-cyan-500/25">
+            <Brain className="h-5 w-5 text-slate-950" />
           </div>
-          <span className="text-lg font-bold text-foreground">Admin Panel</span>
-          <Badge variant="secondary">Admin</Badge>
+          <span className="text-lg font-bold text-slate-100">Admin Panel</span>
+          <Badge variant="secondary" className="hidden border border-cyan-300/35 bg-cyan-400/10 text-cyan-200 sm:inline-flex">Admin</Badge>
         </div>
         <Avatar className="h-9 w-9">
-          <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">AD</AvatarFallback>
+          <AvatarFallback className="bg-cyan-300/10 text-cyan-300 text-sm font-medium">AD</AvatarFallback>
         </Avatar>
       </header>
 
-      <main className="p-6 max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">System overview and management controls.</p>
+      <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
+        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-linear-to-r from-slate-900/95 via-slate-900/85 to-cyan-900/35 px-4 py-5 shadow-xl shadow-black/20 sm:px-6 sm:py-6">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-cyan-400/15 blur-2xl" />
+          <h1 className="text-2xl font-bold text-slate-100 sm:text-3xl">Admin Dashboard</h1>
+          <p className="mt-1 text-sm text-slate-300 sm:text-base">System overview and management controls.</p>
         </div>
 
         {/* Stats */}
@@ -99,15 +100,15 @@ export default function AdminPage() {
 
         {/* Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="border-border/50 shadow-sm">
+          <Card className="border-white/10 bg-white/4 shadow-lg shadow-black/20 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base flex items-center gap-2 text-slate-100">
+                <BarChart3 className="h-4 w-4 text-cyan-300" />
                 Growth Overview
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[280px]">
+              <div className="h-70">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -115,10 +116,11 @@ export default function AdminPage() {
                     <YAxis tick={{ fill: 'var(--color-muted-foreground)', fontSize: 12 }} />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: 'var(--color-card)',
-                        border: '1px solid var(--color-border)',
+                        backgroundColor: '#0f172acc',
+                        border: '1px solid rgba(255,255,255,0.12)',
                         borderRadius: '0.5rem',
                         fontSize: '0.75rem',
+                        color: '#e2e8f0',
                       }}
                     />
                     <Bar dataKey="users" fill="var(--color-primary)" radius={[4, 4, 0, 0]} name="Users" />
@@ -129,15 +131,15 @@ export default function AdminPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-sm">
+          <Card className="border-white/10 bg-white/4 shadow-lg shadow-black/20 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base flex items-center gap-2 text-slate-100">
+                <Users className="h-4 w-4 text-cyan-300" />
                 User Distribution
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-[220px]">
+              <div className="h-55">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -155,20 +157,21 @@ export default function AdminPage() {
                     </Pie>
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: 'var(--color-card)',
-                        border: '1px solid var(--color-border)',
+                        backgroundColor: '#0f172acc',
+                        border: '1px solid rgba(255,255,255,0.12)',
                         borderRadius: '0.5rem',
                         fontSize: '0.75rem',
+                        color: '#e2e8f0',
                       }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex justify-center gap-6 mt-2">
+              <div className="mt-2 flex flex-wrap justify-center gap-4 sm:gap-6">
                 {userRoleData.map((item) => (
                   <div key={item.name} className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-xs text-muted-foreground">{item.name} ({item.value})</span>
+                    <span className="text-xs text-slate-300">{item.name} ({item.value})</span>
                   </div>
                 ))}
               </div>
@@ -178,20 +181,20 @@ export default function AdminPage() {
 
         {/* Management Tabs */}
         <Tabs defaultValue="users" className="space-y-4">
-          <TabsList>
+          <TabsList className="h-auto w-full flex-wrap gap-2 bg-slate-900/70 p-1 sm:w-auto">
             <TabsTrigger value="users">User Management</TabsTrigger>
             <TabsTrigger value="tasks">Task Management</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">
-            <Card className="border-border/50 shadow-sm">
+            <Card className="border-white/10 bg-white/4 shadow-lg shadow-black/20 backdrop-blur-sm">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-4">
-                  <CardTitle className="text-base">All Users</CardTitle>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <CardTitle className="text-base text-slate-100">All Users</CardTitle>
                   <div className="relative max-w-xs w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search users..." value={searchUsers} onChange={(e) => setSearchUsers(e.target.value)} className="pl-9 h-9" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input placeholder="Search users..." value={searchUsers} onChange={(e) => setSearchUsers(e.target.value)} className="h-9 border-white/15 bg-slate-900/60 pl-9 text-slate-100 placeholder:text-slate-400" />
                   </div>
                 </div>
               </CardHeader>
@@ -215,22 +218,22 @@ export default function AdminPage() {
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
-                                <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                <AvatarFallback className="bg-cyan-300/10 text-cyan-300 text-xs">
                                   {user.name.split(" ").map((n) => n[0]).join("")}
                                 </AvatarFallback>
                               </Avatar>
                               <div>
-                                <p className="text-sm font-medium text-foreground">{user.name}</p>
-                                <p className="text-xs text-muted-foreground">{user.email}</p>
+                                  <p className="text-sm font-medium text-slate-100">{user.name}</p>
+                                  <p className="text-xs text-slate-400">{user.email}</p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell><Badge variant="secondary" className="text-xs">{user.domain}</Badge></TableCell>
-                          <TableCell><Badge variant="outline" className="text-xs">Student</Badge></TableCell>
-                          <TableCell className="text-sm text-foreground">{user.tasksCompleted}</TableCell>
-                          <TableCell className="text-sm font-medium text-foreground">{user.avgScore}%</TableCell>
+                            <TableCell><Badge variant="secondary" className="text-xs border border-white/15 bg-slate-800 text-slate-200">{user.domain}</Badge></TableCell>
+                            <TableCell><Badge variant="outline" className="text-xs border-white/15 text-slate-200">Student</Badge></TableCell>
+                            <TableCell className="text-sm text-slate-100">{user.tasksCompleted}</TableCell>
+                            <TableCell className="text-sm font-medium text-slate-100">{user.avgScore}%</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Active</Badge>
+                              <Badge variant="outline" className="border-emerald-300/35 bg-emerald-400/10 text-emerald-200 text-xs">Active</Badge>
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -240,10 +243,10 @@ export default function AdminPage() {
                                   <span className="sr-only">Actions</span>
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem>View Profile</DropdownMenuItem>
-                                <DropdownMenuItem>Edit User</DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive">Suspend</DropdownMenuItem>
+                              <DropdownMenuContent align="end" className="border-white/15 bg-slate-900/95 text-slate-100 shadow-2xl shadow-black/40 backdrop-blur">
+                                <DropdownMenuItem className="focus:bg-white/10">View Profile</DropdownMenuItem>
+                                <DropdownMenuItem className="focus:bg-white/10">Edit User</DropdownMenuItem>
+                                <DropdownMenuItem className="text-rose-300 focus:bg-white/10">Suspend</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -257,16 +260,16 @@ export default function AdminPage() {
           </TabsContent>
 
           <TabsContent value="tasks">
-            <Card className="border-border/50 shadow-sm">
+            <Card className="border-white/10 bg-white/4 shadow-lg shadow-black/20 backdrop-blur-sm">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-4">
-                  <CardTitle className="text-base">All Tasks</CardTitle>
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <CardTitle className="text-base text-slate-100">All Tasks</CardTitle>
+                  <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
                     <div className="relative max-w-xs w-full">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Search tasks..." value={searchTasks} onChange={(e) => setSearchTasks(e.target.value)} className="pl-9 h-9" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input placeholder="Search tasks..." value={searchTasks} onChange={(e) => setSearchTasks(e.target.value)} className="h-9 border-white/15 bg-slate-900/60 pl-9 text-slate-100 placeholder:text-slate-400" />
                     </div>
-                    <Button size="sm">Add Task</Button>
+                    <Button size="sm" className="bg-cyan-400 text-slate-950 hover:bg-cyan-300">Add Task</Button>
                   </div>
                 </div>
               </CardHeader>
@@ -286,21 +289,21 @@ export default function AdminPage() {
                     <TableBody>
                       {filteredTasks.map((task) => (
                         <TableRow key={task.id} className="border-border/50">
-                          <TableCell className="text-sm font-medium text-foreground max-w-[200px] truncate">{task.title}</TableCell>
-                          <TableCell><Badge variant="secondary" className="text-xs">{task.domain}</Badge></TableCell>
+                          <TableCell className="text-sm font-medium text-slate-100 max-w-50 truncate">{task.title}</TableCell>
+                          <TableCell><Badge variant="secondary" className="text-xs border border-white/15 bg-slate-800 text-slate-200">{task.domain}</Badge></TableCell>
                           <TableCell>
                             <Badge variant="outline" className={
-                              task.difficulty === "Beginner" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
-                              task.difficulty === "Intermediate" ? "bg-amber-100 text-amber-700 border-amber-200" :
-                              "bg-red-100 text-red-700 border-red-200"
+                              task.difficulty === "Beginner" ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200" :
+                              task.difficulty === "Intermediate" ? "border-amber-300/35 bg-amber-400/10 text-amber-200" :
+                              "border-rose-300/35 bg-rose-400/10 text-rose-200"
                             }>{task.difficulty}</Badge>
                           </TableCell>
-                          <TableCell className="text-sm text-foreground">{task.points}</TableCell>
+                          <TableCell className="text-sm text-slate-100">{task.points}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={
-                              task.status === "available" ? "bg-primary/10 text-primary border-primary/20" :
-                              task.status === "completed" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
-                              "bg-amber-100 text-amber-700 border-amber-200"
+                              task.status === "available" ? "border-cyan-300/35 bg-cyan-400/10 text-cyan-200" :
+                              task.status === "completed" ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200" :
+                              "border-amber-300/35 bg-amber-400/10 text-amber-200"
                             }>{task.status}</Badge>
                           </TableCell>
                           <TableCell>
@@ -311,10 +314,10 @@ export default function AdminPage() {
                                   <span className="sr-only">Actions</span>
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem>Edit Task</DropdownMenuItem>
-                                <DropdownMenuItem>View Submissions</DropdownMenuItem>
-                                <DropdownMenuItem className="text-destructive">Remove</DropdownMenuItem>
+                              <DropdownMenuContent align="end" className="border-white/15 bg-slate-900/95 text-slate-100 shadow-2xl shadow-black/40 backdrop-blur">
+                                <DropdownMenuItem className="focus:bg-white/10">Edit Task</DropdownMenuItem>
+                                <DropdownMenuItem className="focus:bg-white/10">View Submissions</DropdownMenuItem>
+                                <DropdownMenuItem className="text-rose-300 focus:bg-white/10">Remove</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -337,14 +340,14 @@ export default function AdminPage() {
                 { title: "Platform Statistics", description: "Overall platform usage, growth metrics, and health indicators.", icon: BarChart3 },
                 { title: "Mentor Evaluation", description: "Mentor effectiveness and student satisfaction ratings.", icon: Star },
               ].map((report) => (
-                <Card key={report.title} className="border-border/50 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer">
+                <Card key={report.title} className="cursor-pointer border-white/10 bg-white/4 shadow-lg shadow-black/20 transition-all hover:-translate-y-0.5 hover:border-cyan-300/30 hover:shadow-xl">
                   <CardContent className="p-6">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                      <report.icon className="h-5 w-5 text-primary" />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-300/10">
+                      <report.icon className="h-5 w-5 text-cyan-300" />
                     </div>
-                    <h3 className="mt-3 font-semibold text-foreground">{report.title}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{report.description}</p>
-                    <Button variant="ghost" size="sm" className="mt-3 text-primary p-0 h-auto">
+                    <h3 className="mt-3 font-semibold text-slate-100">{report.title}</h3>
+                    <p className="mt-1 text-sm text-slate-300">{report.description}</p>
+                    <Button variant="ghost" size="sm" className="mt-3 h-auto p-0 text-cyan-300 hover:bg-transparent hover:text-cyan-200">
                       Generate Report
                     </Button>
                   </CardContent>

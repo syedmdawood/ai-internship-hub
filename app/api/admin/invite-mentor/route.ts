@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
-import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin"
 
 export async function POST(req: Request) {
+  const supabaseAdmin = getSupabaseAdmin()
   const h = await headers()
   const authHeader = h.get("authorization")
 
