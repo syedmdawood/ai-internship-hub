@@ -27,7 +27,6 @@ export async function GET(req: Request) {
         id,
         primary_domain_id,
         secondary_domain_id,
-        selected_task_domain_id,
         skill_level,
         current_skill_level
       `)
@@ -43,7 +42,6 @@ export async function GET(req: Request) {
     const domainIds = [
       profile.primary_domain_id,
       profile.secondary_domain_id,
-      profile.selected_task_domain_id,
     ].filter(Boolean);
 
     const domainsResult = await supabaseAdmin
@@ -63,9 +61,6 @@ export async function GET(req: Request) {
         ...profile,
         primary_domain_name: profile.primary_domain_id ? domainsMap.get(profile.primary_domain_id) || null : null,
         secondary_domain_name: profile.secondary_domain_id ? domainsMap.get(profile.secondary_domain_id) || null : null,
-        selected_task_domain_name: profile.selected_task_domain_id
-          ? domainsMap.get(profile.selected_task_domain_id) || null
-          : null,
       },
     });
   } catch (error) {

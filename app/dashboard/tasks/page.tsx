@@ -23,6 +23,10 @@ type StartedTask = {
   status: string;
   assigned_at: string;
   started_at: string | null;
+  submitted_at?: string | null;
+  completed_at?: string | null;
+  recommendation_score?: number | null;
+  recommendation_reason?: string | null;
   task: {
     id: string;
     title: string;
@@ -38,12 +42,16 @@ type StartedTask = {
 type ProfileContext = {
   primary_domain_id: string | null;
   secondary_domain_id: string | null;
-  selected_task_domain_id: string | null;
   primary_domain_name: string | null;
   secondary_domain_name: string | null;
-  selected_task_domain_name: string | null;
   skill_level: string | null;
   current_skill_level: string | null;
+};
+
+type ProgressSummary = {
+  totalAssigned: number;
+  inProgress: number;
+  completed: number;
 };
 
 export default function TasksPage() {
@@ -52,13 +60,12 @@ export default function TasksPage() {
   const [loadingRecommendations, setLoadingRecommendations] = useState(true);
   const [loadingMyTasks, setLoadingMyTasks] = useState(true);
   const [loadingProfileContext, setLoadingProfileContext] = useState(true);
-  const [selectingDomain, setSelectingDomain] = useState(false);
   const [startingTaskId, setStartingTaskId] = useState<string | null>(null);
 
   const [recommendations, setRecommendations] = useState<RecommendedTask[]>([]);
   const [myTasks, setMyTasks] = useState<StartedTask[]>([]);
   const [profileContext, setProfileContext] = useState<ProfileContext | null>(null);
-  const [needsDomainSelection, setNeedsDomainSelection] = useState(false);
+  const [progress, setProgress] = useState<ProgressSummary | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -135,8 +142,8 @@ export default function TasksPage() {
         return;
       }
 
-      setNeedsDomainSelection(Boolean(data.needsDomainSelection));
       setRecommendations(data.recommendations || []);
+      setProgress(data.progress || null);
     } catch (error) {
       console.error(error);
       toast.error("Something went wrong while loading recommendations.");
@@ -162,7 +169,7 @@ export default function TasksPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || "Failed to load started tasks.");
+        toast.error(data.error || "Failed to load allocated tasks.");
         return;
       }
 
@@ -175,45 +182,9 @@ export default function TasksPage() {
     }
   }
 
-  async function handleSelectDomain(domainId: string) {
+  async function handleStartTask(taskId: string) {
     try {
-      setSelectingDomain(true);
-
-      const token = await getAccessToken();
-      if (!token) {
-        toast.error("You are not logged in.");
-        return;
-      }
-
-      const res = await fetch("/api/task/select-domain", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ domainId }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error || "Failed to select domain.");
-        return;
-      }
-
-      toast.success("Domain selected successfully.");
-      await loadAll();
-    } catch (error) {
-      console.error(error);
-      toast.error("Something went wrong while selecting domain.");
-    } finally {
-      setSelectingDomain(false);
-    }
-  }
-
-  async function handleStartTask(task: RecommendedTask) {
-    try {
-      setStartingTaskId(task.id);
+      setStartingTaskId(taskId);
 
       const token = await getAccessToken();
       if (!token) {
@@ -227,11 +198,7 @@ export default function TasksPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          taskId: task.id,
-          recommendationScore: task.recommendation_score,
-          recommendationReason: task.recommendation_reason,
-        }),
+        body: JSON.stringify({ taskId }),
       });
 
       const data = await res.json();
@@ -241,9 +208,8 @@ export default function TasksPage() {
         return;
       }
 
-      toast.success("Task started successfully.");
-      await loadRecommendations();
-      await loadMyTasks();
+      toast.success("AI recommended task started successfully.");
+      await Promise.all([loadRecommendations(), loadMyTasks()]);
     } catch (error) {
       console.error(error);
       toast.error("Something went wrong while starting the task.");
@@ -252,165 +218,166 @@ export default function TasksPage() {
     }
   }
 
-  const showDomainSelection =
-    !loadingProfileContext &&
-    !loadingRecommendations &&
-    profileContext &&
-    !profileContext.selected_task_domain_id &&
-    needsDomainSelection;
+  const resolvedSkillLevel =
+    profileContext?.current_skill_level || profileContext?.skill_level || "-";
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold">Internship Tasks</h1>
+        <h1 className="text-2xl font-bold">AI Task Allocation</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Complete assessment first, choose a recommended domain, then start internship tasks based on your profile.
+          Tasks are recommended automatically using your assessment profile,
+          skill level, recommended domains, and previous progress.
         </p>
       </div>
 
-      {profileContext?.selected_task_domain_name ? (
-        <div className="rounded-xl border bg-muted/40 p-4">
-          <p className="text-sm">
-            <span className="font-semibold">Selected Domain:</span>{" "}
-            {profileContext.selected_task_domain_name}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Tasks below are filtered according to your chosen recommended domain.
-          </p>
-        </div>
-      ) : null}
-
-      {showDomainSelection ? (
-        <section className="space-y-4 rounded-xl border p-6">
-          <div>
-            <h2 className="text-lg font-semibold">Choose Your Internship Domain</h2>
-            <p className="text-sm text-muted-foreground">
-              These domains were recommended from your skill assessment. Select one to unlock related tasks.
+      {!loadingProfileContext && profileContext ? (
+        <section className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border bg-muted/40 p-4">
+            <p className="text-sm font-medium">Primary Recommended Domain</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {profileContext.primary_domain_name || "-"}
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {profileContext.primary_domain_id && profileContext.primary_domain_name ? (
-              <button
-                onClick={() => handleSelectDomain(profileContext.primary_domain_id!)}
-                disabled={selectingDomain}
-                className="rounded-xl border p-5 text-left transition hover:border-primary"
-              >
-                <p className="text-sm text-muted-foreground">Primary Recommended Domain</p>
-                <h3 className="mt-1 text-lg font-semibold">{profileContext.primary_domain_name}</h3>
-              </button>
-            ) : null}
+          <div className="rounded-xl border bg-muted/40 p-4">
+            <p className="text-sm font-medium">Secondary Recommended Domain</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {profileContext.secondary_domain_name || "-"}
+            </p>
+          </div>
 
-            {profileContext.secondary_domain_id && profileContext.secondary_domain_name ? (
-              <button
-                onClick={() => handleSelectDomain(profileContext.secondary_domain_id!)}
-                disabled={selectingDomain}
-                className="rounded-xl border p-5 text-left transition hover:border-primary"
-              >
-                <p className="text-sm text-muted-foreground">Secondary Recommended Domain</p>
-                <h3 className="mt-1 text-lg font-semibold">{profileContext.secondary_domain_name}</h3>
-              </button>
-            ) : null}
+          <div className="rounded-xl border bg-muted/40 p-4">
+            <p className="text-sm font-medium">Current Skill Level</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {resolvedSkillLevel}
+            </p>
           </div>
         </section>
       ) : null}
 
-      {!showDomainSelection ? (
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Recommended Tasks</h2>
-            <p className="text-sm text-muted-foreground">
-              These tasks match your selected domain and current skill level.
-            </p>
+      {progress ? (
+        <section className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border p-4">
+            <p className="text-sm text-muted-foreground">Total Allocated</p>
+            <p className="mt-1 text-2xl font-bold">{progress.totalAssigned}</p>
           </div>
 
-          {loadingRecommendations ? (
-            <div className="rounded-xl border p-6 text-sm text-muted-foreground">
-              Loading recommendations...
-            </div>
-          ) : recommendations.length === 0 ? (
-            <div className="rounded-xl border p-6 text-sm text-muted-foreground">
-              No recommended tasks found for your selected domain yet.
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {recommendations.map((task) => (
-                <div key={task.id} className="rounded-xl border bg-background p-5 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-base font-semibold">{task.title}</h3>
-                    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                      {task.difficulty_level}
-                    </span>
-                  </div>
+          <div className="rounded-xl border p-4">
+            <p className="text-sm text-muted-foreground">In Progress</p>
+            <p className="mt-1 text-2xl font-bold">{progress.inProgress}</p>
+          </div>
 
-                  <p className="mt-2 text-sm text-muted-foreground">{task.description}</p>
-
-                  <div className="mt-4 space-y-2 text-sm">
-                    <p>
-                      <span className="font-medium">Estimated Time:</span> {task.estimated_minutes} minutes
-                    </p>
-                    <p>
-                      <span className="font-medium">Deliverable:</span> {task.deliverable_type}
-                    </p>
-                    <p>
-                      <span className="font-medium">Recommendation Score:</span> {task.recommendation_score}
-                    </p>
-                  </div>
-
-                  {task.tags?.length ? (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {task.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full border px-2 py-1 text-xs text-muted-foreground"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {task.instructions ? (
-                    <div className="mt-4 rounded-lg bg-muted p-3 text-sm">
-                      <span className="font-medium">Instructions:</span> {task.instructions}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                    {task.recommendation_reason || "Recommended for your profile"}
-                  </div>
-
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      onClick={() => handleStartTask(task)}
-                      disabled={startingTaskId === task.id}
-                      className="rounded-lg bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-                    >
-                      {startingTaskId === task.id ? "Starting..." : "Start Task"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="rounded-xl border p-4">
+            <p className="text-sm text-muted-foreground">Completed</p>
+            <p className="mt-1 text-2xl font-bold">{progress.completed}</p>
+          </div>
         </section>
       ) : null}
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">My Started Tasks</h2>
+          <h2 className="text-lg font-semibold">AI Recommended Tasks</h2>
           <p className="text-sm text-muted-foreground">
-            These are the tasks you have already started.
+            The system selects suitable tasks from your recommended domains. You
+            do not need to manually choose a domain.
+          </p>
+        </div>
+
+        {loadingRecommendations ? (
+          <div className="rounded-xl border p-6 text-sm text-muted-foreground">
+            Loading AI recommendations...
+          </div>
+        ) : recommendations.length === 0 ? (
+          <div className="rounded-xl border p-6 text-sm text-muted-foreground">
+            No recommended tasks found yet. Please make sure active tasks exist
+            for your primary or secondary recommended domain.
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {recommendations.map((task) => (
+              <div key={task.id} className="rounded-xl border bg-background p-5 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-base font-semibold">{task.title}</h3>
+                  <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                    {task.difficulty_level}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-sm text-muted-foreground">{task.description}</p>
+
+                <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
+                  <p>
+                    <span className="font-medium">Estimated Time:</span>{" "}
+                    {task.estimated_minutes} minutes
+                  </p>
+
+                  <p>
+                    <span className="font-medium">Deliverable:</span>{" "}
+                    {task.deliverable_type}
+                  </p>
+
+                  <p>
+                    <span className="font-medium">AI Score:</span>{" "}
+                    {task.recommendation_score}/100
+                  </p>
+                </div>
+
+                {task.tags?.length ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {task.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full border px-2 py-1 text-xs text-muted-foreground"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {task.instructions ? (
+                  <div className="mt-4 rounded-lg bg-muted p-3 text-sm">
+                    <span className="font-medium">Instructions:</span>{" "}
+                    {task.instructions}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                  {task.recommendation_reason ||
+                    "Recommended based on your profile and progress."}
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={() => handleStartTask(task.id)}
+                    disabled={startingTaskId === task.id}
+                    className="rounded-lg bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+                  >
+                    {startingTaskId === task.id ? "Starting..." : "Start Task"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">My Allocated Tasks</h2>
+          <p className="text-sm text-muted-foreground">
+            These are the tasks you started from AI recommendations.
           </p>
         </div>
 
         {loadingMyTasks ? (
           <div className="rounded-xl border p-6 text-sm text-muted-foreground">
-            Loading started tasks...
+            Loading allocated tasks...
           </div>
         ) : myTasks.length === 0 ? (
           <div className="rounded-xl border p-6 text-sm text-muted-foreground">
-            You have not started any tasks yet.
+            You have not started any recommended task yet.
           </div>
         ) : (
           <div className="space-y-4">
@@ -431,23 +398,43 @@ export default function TasksPage() {
 
                 <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
                   <p>
-                    <span className="font-medium">Difficulty:</span> {item.task?.difficulty_level || "-"}
+                    <span className="font-medium">Difficulty:</span>{" "}
+                    {item.task?.difficulty_level || "-"}
                   </p>
+
                   <p>
-                    <span className="font-medium">Estimated Time:</span> {item.task?.estimated_minutes || "-"} minutes
+                    <span className="font-medium">Estimated Time:</span>{" "}
+                    {item.task?.estimated_minutes || "-"} minutes
                   </p>
+
                   <p>
-                    <span className="font-medium">Deliverable:</span> {item.task?.deliverable_type || "-"}
+                    <span className="font-medium">Deliverable:</span>{" "}
+                    {item.task?.deliverable_type || "-"}
                   </p>
+
                   <p>
                     <span className="font-medium">Started At:</span>{" "}
                     {item.started_at ? new Date(item.started_at).toLocaleString() : "-"}
                   </p>
                 </div>
 
+                {item.recommendation_score ? (
+                  <p className="mt-3 text-sm">
+                    <span className="font-medium">AI Score:</span>{" "}
+                    {item.recommendation_score}/100
+                  </p>
+                ) : null}
+
+                {item.recommendation_reason ? (
+                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                    {item.recommendation_reason}
+                  </div>
+                ) : null}
+
                 {item.task?.instructions ? (
                   <div className="mt-4 rounded-lg bg-muted p-3 text-sm">
-                    <span className="font-medium">Instructions:</span> {item.task.instructions}
+                    <span className="font-medium">Instructions:</span>{" "}
+                    {item.task.instructions}
                   </div>
                 ) : null}
               </div>
