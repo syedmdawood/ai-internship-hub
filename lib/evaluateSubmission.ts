@@ -62,6 +62,8 @@ function similarity(a: string, b: string) {
   return union === 0 ? 0 : intersection / union;
 }
 
+
+
 function getSubmissionContent(submission: any) {
   return [
     submission.submission_text,
