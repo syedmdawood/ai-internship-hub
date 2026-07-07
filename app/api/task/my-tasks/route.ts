@@ -45,7 +45,7 @@ export async function GET(req: Request) {
 
     const tasksResult = await supabaseAdmin
       .from("tasks")
-      .select("id, title, description, difficulty_level, estimated_minutes, deliverable_type, instructions, tags")
+      .select("id, title, description, difficulty_level, estimated_minutes, deliverable_type, evaluation_type, evaluation_criteria, instructions, tags")
       .in("id", taskIds);
 
     if (tasksResult.error) {

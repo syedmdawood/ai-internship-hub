@@ -63,7 +63,7 @@ export function ChatUI() {
   }
 
   return (
-    <Card className="flex flex-col h-[calc(100vh-12rem)] border-border/50">
+    <Card className="flex flex-col h-[100%] border-border/50">
       <div className="border-b border-border/50 p-4 flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
           <Bot className="h-5 w-5 text-primary" />

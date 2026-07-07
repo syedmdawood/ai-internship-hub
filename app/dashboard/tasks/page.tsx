@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -54,6 +55,73 @@ type ProgressSummary = {
   completed: number;
 };
 
+const FINAL_STATUSES = [
+  "submitted",
+  "under_review",
+  "reviewed",
+  "completed",
+  "approved",
+  "expired",
+  "finished",
+  "cancelled",
+];
+
+function normalizeStatus(status: string | null | undefined) {
+  return (status || "").toLowerCase().replace(/\s+/g, "_");
+}
+
+function isFinalStatus(status: string | null | undefined) {
+  return FINAL_STATUSES.includes(normalizeStatus(status));
+}
+
+function getTaskDeadlineMs(item: StartedTask) {
+  if (!item.started_at || !item.task?.estimated_minutes) return null;
+
+  const startedMs = new Date(item.started_at).getTime();
+  if (Number.isNaN(startedMs)) return null;
+
+  return startedMs + item.task.estimated_minutes * 60 * 1000;
+}
+
+function isTaskExpired(item: StartedTask, now: number) {
+  if (!item.started_at || isFinalStatus(item.status)) return false;
+
+  const deadlineMs = getTaskDeadlineMs(item);
+  if (!deadlineMs) return false;
+
+  return now >= deadlineMs;
+}
+
+function isTaskActive(item: StartedTask, now: number) {
+  if (!item.started_at) return false;
+  if (isFinalStatus(item.status)) return false;
+  if (isTaskExpired(item, now)) return false;
+
+  return true;
+}
+
+function formatRemainingTime(ms: number) {
+  if (ms <= 0) return "Time over";
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }
+
+  return `${minutes}m ${seconds}s`;
+}
+
+function getRemainingText(item: StartedTask, now: number) {
+  const deadlineMs = getTaskDeadlineMs(item);
+  if (!deadlineMs) return "-";
+
+  return formatRemainingTime(deadlineMs - now);
+}
+
 export default function TasksPage() {
   const router = useRouter();
 
@@ -66,10 +134,33 @@ export default function TasksPage() {
   const [myTasks, setMyTasks] = useState<StartedTask[]>([]);
   const [profileContext, setProfileContext] = useState<ProfileContext | null>(null);
   const [progress, setProgress] = useState<ProgressSummary | null>(null);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     loadAll();
+
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
   }, []);
+
+  const activeTask = useMemo(() => {
+    return myTasks.find((item) => isTaskActive(item, now)) || null;
+  }, [myTasks, now]);
+
+  const allocatedTaskMap = useMemo(() => {
+    const map = new Map<string, StartedTask>();
+
+    myTasks.forEach((item) => {
+      if (item.task?.id) {
+        map.set(item.task.id, item);
+      }
+    });
+
+    return map;
+  }, [myTasks]);
 
   async function getAccessToken() {
     const {
@@ -82,18 +173,23 @@ export default function TasksPage() {
   }
 
   async function loadAll() {
-    await Promise.all([loadProfileContext(), loadRecommendations(), loadMyTasks()]);
+    const token = await getAccessToken();
+
+    if (!token) {
+      toast.error("You are not logged in.");
+      return;
+    }
+
+    await Promise.all([
+      loadProfileContext(token),
+      loadRecommendations(token),
+      loadMyTasks(token),
+    ]);
   }
 
-  async function loadProfileContext() {
+  async function loadProfileContext(token: string) {
     try {
       setLoadingProfileContext(true);
-
-      const token = await getAccessToken();
-      if (!token) {
-        toast.error("You are not logged in.");
-        return;
-      }
 
       const res = await fetch("/api/task/profile-context", {
         headers: { Authorization: `Bearer ${token}` },
@@ -115,15 +211,9 @@ export default function TasksPage() {
     }
   }
 
-  async function loadRecommendations() {
+  async function loadRecommendations(token: string) {
     try {
       setLoadingRecommendations(true);
-
-      const token = await getAccessToken();
-      if (!token) {
-        toast.error("You are not logged in.");
-        return;
-      }
 
       const res = await fetch("/api/task/recommend", {
         headers: { Authorization: `Bearer ${token}` },
@@ -152,15 +242,9 @@ export default function TasksPage() {
     }
   }
 
-  async function loadMyTasks() {
+  async function loadMyTasks(token: string) {
     try {
       setLoadingMyTasks(true);
-
-      const token = await getAccessToken();
-      if (!token) {
-        toast.error("You are not logged in.");
-        return;
-      }
 
       const res = await fetch("/api/task/my-tasks", {
         headers: { Authorization: `Bearer ${token}` },
@@ -184,9 +268,22 @@ export default function TasksPage() {
 
   async function handleStartTask(taskId: string) {
     try {
+      if (activeTask) {
+        toast.error("You already have one task in progress. Submit it or wait until it expires.");
+        return;
+      }
+
+      const alreadyAllocated = allocatedTaskMap.get(taskId);
+
+      if (alreadyAllocated) {
+        toast.error("This task is already allocated to you.");
+        return;
+      }
+
       setStartingTaskId(taskId);
 
       const token = await getAccessToken();
+
       if (!token) {
         toast.error("You are not logged in.");
         return;
@@ -208,8 +305,9 @@ export default function TasksPage() {
         return;
       }
 
-      toast.success("AI recommended task started successfully.");
-      await Promise.all([loadRecommendations(), loadMyTasks()]);
+      toast.success("Task started successfully.");
+
+      await Promise.all([loadRecommendations(token), loadMyTasks(token)]);
     } catch (error) {
       console.error(error);
       toast.error("Something went wrong while starting the task.");
@@ -230,6 +328,16 @@ export default function TasksPage() {
           skill level, recommended domains, and previous progress.
         </p>
       </div>
+
+      {activeTask ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-medium">You already have one task in progress.</p>
+          <p className="mt-1">
+            Current Task: {activeTask.task?.title || "Task"} | Remaining Time:{" "}
+            <span className="font-semibold">{getRemainingText(activeTask, now)}</span>
+          </p>
+        </div>
+      ) : null}
 
       {!loadingProfileContext && profileContext ? (
         <section className="grid gap-4 md:grid-cols-3">
@@ -279,8 +387,8 @@ export default function TasksPage() {
         <div>
           <h2 className="text-lg font-semibold">AI Recommended Tasks</h2>
           <p className="text-sm text-muted-foreground">
-            The system selects suitable tasks from your recommended domains. You
-            do not need to manually choose a domain.
+            The system selects suitable tasks from your recommended domains.
+            You can start only one task at a time.
           </p>
         </div>
 
@@ -295,70 +403,99 @@ export default function TasksPage() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {recommendations.map((task) => (
-              <div key={task.id} className="rounded-xl border bg-background p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-base font-semibold">{task.title}</h3>
-                  <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                    {task.difficulty_level}
-                  </span>
-                </div>
+            {recommendations.map((task) => {
+              const allocatedTask = allocatedTaskMap.get(task.id);
+              const allocatedExpired = allocatedTask
+                ? isTaskExpired(allocatedTask, now)
+                : false;
 
-                <p className="mt-2 text-sm text-muted-foreground">{task.description}</p>
+              const disableStart =
+                Boolean(startingTaskId) ||
+                Boolean(activeTask) ||
+                Boolean(allocatedTask);
 
-                <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
-                  <p>
-                    <span className="font-medium">Estimated Time:</span>{" "}
-                    {task.estimated_minutes} minutes
-                  </p>
+              let buttonText = "Start Task";
 
-                  <p>
-                    <span className="font-medium">Deliverable:</span>{" "}
-                    {task.deliverable_type}
-                  </p>
+              if (startingTaskId === task.id) {
+                buttonText = "Starting...";
+              } else if (allocatedTask && allocatedExpired) {
+                buttonText = "Time Expired";
+              } else if (allocatedTask) {
+                buttonText = "Already Started";
+              } else if (activeTask) {
+                buttonText = "Another Task In Progress";
+              }
 
-                  <p>
-                    <span className="font-medium">AI Score:</span>{" "}
-                    {task.recommendation_score}/100
-                  </p>
-                </div>
-
-                {task.tags?.length ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {task.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full border px-2 py-1 text-xs text-muted-foreground"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+              return (
+                <div
+                  key={task.id}
+                  className="rounded-xl border bg-background p-5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-base font-semibold">{task.title}</h3>
+                    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                      {task.difficulty_level}
+                    </span>
                   </div>
-                ) : null}
 
-                {task.instructions ? (
-                  <div className="mt-4 rounded-lg bg-muted p-3 text-sm">
-                    <span className="font-medium">Instructions:</span>{" "}
-                    {task.instructions}
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {task.description}
+                  </p>
+
+                  <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
+                    <p>
+                      <span className="font-medium">Estimated Time:</span>{" "}
+                      {task.estimated_minutes} minutes
+                    </p>
+
+                    <p>
+                      <span className="font-medium">Deliverable:</span>{" "}
+                      {task.deliverable_type}
+                    </p>
+
+                    <p>
+                      <span className="font-medium">AI Score:</span>{" "}
+                      {task.recommendation_score}/100
+                    </p>
                   </div>
-                ) : null}
 
-                <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                  {task.recommendation_reason ||
-                    "Recommended based on your profile and progress."}
-                </div>
+                  {task.tags?.length ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {task.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full border px-2 py-1 text-xs text-muted-foreground"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
 
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={() => handleStartTask(task.id)}
-                    disabled={startingTaskId === task.id}
-                    className="rounded-lg bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
-                  >
-                    {startingTaskId === task.id ? "Starting..." : "Start Task"}
-                  </button>
+                  {task.instructions ? (
+                    <div className="mt-4 rounded-lg bg-muted p-3 text-sm">
+                      <span className="font-medium">Instructions:</span>{" "}
+                      {task.instructions}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                    {task.recommendation_reason ||
+                      "Recommended based on your profile and progress."}
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={() => handleStartTask(task.id)}
+                      disabled={disableStart}
+                      className="rounded-lg bg-black px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {buttonText}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -381,64 +518,113 @@ export default function TasksPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {myTasks.map((item) => (
-              <div key={item.id} className="rounded-xl border bg-background p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-base font-semibold">{item.task?.title || "Task"}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {item.task?.description || "No description"}
+            {myTasks.map((item) => {
+              const expired = isTaskExpired(item, now);
+              const active = isTaskActive(item, now);
+              const remainingText = getRemainingText(item, now);
+
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-xl border bg-background p-5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-semibold">
+                        {item.task?.title || "Task"}
+                      </h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {item.task?.description || "No description"}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <span
+                        className={
+                          expired
+                            ? "rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700"
+                            : active
+                            ? "rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700"
+                            : "rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
+                        }
+                      >
+                        {expired ? "expired" : item.status}
+                      </span>
+
+                      {item.started_at ? (
+                        <p
+                          className={
+                            expired
+                              ? "mt-2 text-xs font-medium text-red-600"
+                              : "mt-2 text-xs font-medium text-amber-700"
+                          }
+                        >
+                          {expired ? "Time over" : `Remaining: ${remainingText}`}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
+                    <p>
+                      <span className="font-medium">Difficulty:</span>{" "}
+                      {item.task?.difficulty_level || "-"}
+                    </p>
+
+                    <p>
+                      <span className="font-medium">Estimated Time:</span>{" "}
+                      {item.task?.estimated_minutes || "-"} minutes
+                    </p>
+
+                    <p>
+                      <span className="font-medium">Deliverable:</span>{" "}
+                      {item.task?.deliverable_type || "-"}
+                    </p>
+
+                    <p>
+                      <span className="font-medium">Started At:</span>{" "}
+                      {item.started_at
+                        ? new Date(item.started_at).toLocaleString()
+                        : "-"}
                     </p>
                   </div>
 
-                  <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                    {item.status}
-                  </span>
+                  {item.recommendation_score ? (
+                    <p className="mt-3 text-sm">
+                      <span className="font-medium">AI Score:</span>{" "}
+                      {item.recommendation_score}/100
+                    </p>
+                  ) : null}
+
+                  {item.recommendation_reason ? (
+                    <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                      {item.recommendation_reason}
+                    </div>
+                  ) : null}
+
+                  {item.task?.instructions ? (
+                    <div className="mt-4 rounded-lg bg-muted p-3 text-sm">
+                      <span className="font-medium">Instructions:</span>{" "}
+                      {item.task.instructions}
+                    </div>
+                  ) : null}
+
+                  {active ? (
+                    <div className="mt-4 flex justify-end">
+                      <Link href="/dashboard/submit">
+                        <button className="rounded-lg bg-black px-4 py-2 text-sm text-white">
+                          Submit Work
+                        </button>
+                      </Link>
+                    </div>
+                  ) : expired ? (
+                    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      Submission time is over. This task cannot be submitted now.
+                    </div>
+                  ) : null}
                 </div>
-
-                <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
-                  <p>
-                    <span className="font-medium">Difficulty:</span>{" "}
-                    {item.task?.difficulty_level || "-"}
-                  </p>
-
-                  <p>
-                    <span className="font-medium">Estimated Time:</span>{" "}
-                    {item.task?.estimated_minutes || "-"} minutes
-                  </p>
-
-                  <p>
-                    <span className="font-medium">Deliverable:</span>{" "}
-                    {item.task?.deliverable_type || "-"}
-                  </p>
-
-                  <p>
-                    <span className="font-medium">Started At:</span>{" "}
-                    {item.started_at ? new Date(item.started_at).toLocaleString() : "-"}
-                  </p>
-                </div>
-
-                {item.recommendation_score ? (
-                  <p className="mt-3 text-sm">
-                    <span className="font-medium">AI Score:</span>{" "}
-                    {item.recommendation_score}/100
-                  </p>
-                ) : null}
-
-                {item.recommendation_reason ? (
-                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                    {item.recommendation_reason}
-                  </div>
-                ) : null}
-
-                {item.task?.instructions ? (
-                  <div className="mt-4 rounded-lg bg-muted p-3 text-sm">
-                    <span className="font-medium">Instructions:</span>{" "}
-                    {item.task.instructions}
-                  </div>
-                ) : null}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
