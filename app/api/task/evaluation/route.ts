@@ -53,6 +53,7 @@ export async function GET(req: Request) {
           figma_url,
           screenshot_url,
           code_snippets,
+          code_files,
           notes,
           files,
           status

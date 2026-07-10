@@ -1,4 +1,5 @@
 // lib/evaluateSubmission.ts
+
 import OpenAI from "openai";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -54,22 +55,58 @@ function similarity(a: string, b: string) {
   if (aTokens.size === 0 || bTokens.size === 0) return 0;
 
   let intersection = 0;
+
   for (const token of aTokens) {
     if (bTokens.has(token)) intersection++;
   }
 
   const union = new Set([...aTokens, ...bTokens]).size;
+
   return union === 0 ? 0 : intersection / union;
 }
 
+function formatCodeFiles(codeFiles: unknown) {
+  if (!Array.isArray(codeFiles)) return "";
 
+  return codeFiles
+    .filter((file) => {
+      if (!file || typeof file !== "object") return false;
+
+      const item = file as {
+        path?: unknown;
+        language?: unknown;
+        content?: unknown;
+      };
+
+      return (
+        String(item.path || "").trim().length > 0 ||
+        String(item.content || "").trim().length > 0
+      );
+    })
+    .map((file, index) => {
+      const item = file as {
+        path?: unknown;
+        language?: unknown;
+        content?: unknown;
+      };
+
+      return [
+        `===== FILE ${index + 1}: ${String(item.path || "untitled").trim()} =====`,
+        `Language: ${String(item.language || "plain text").trim()}`,
+        String(item.content || "").trim(),
+      ].join("\n");
+    })
+    .join("\n\n");
+}
 
 function getSubmissionContent(submission: any) {
+  const structuredCode = formatCodeFiles(submission.code_files);
+
   return [
     submission.submission_text,
+    structuredCode,
     submission.code_snippets,
     submission.notes,
-    submission.github_url,
     submission.figma_url,
     submission.submission_url,
   ]
@@ -80,11 +117,13 @@ function getSubmissionContent(submission: any) {
 function inferEvaluationType(task: any): EvaluationType {
   if (task?.evaluation_type) {
     const value = String(task.evaluation_type).toLowerCase();
+
     if (["code", "writing", "design", "general"].includes(value)) {
       return value as EvaluationType;
     }
   }
 
+  if (task?.deliverable_type === "code_files") return "code";
   if (task?.deliverable_type === "github_link") return "code";
   if (task?.deliverable_type === "figma_url") return "design";
   if (task?.deliverable_type === "text") return "writing";
@@ -101,6 +140,7 @@ function buildPrompt(params: {
   const { evaluationType, task, submission, originalitySimilarity } = params;
 
   const content = getSubmissionContent(submission);
+  const structuredCode = formatCodeFiles(submission.code_files);
 
   return `
 You are an AI evaluator for a virtual internship and freelancing training platform.
@@ -118,9 +158,12 @@ Evaluation Criteria: ${JSON.stringify(task.evaluation_criteria || {})}
 
 Student Submission:
 Submission URL: ${submission.submission_url || "N/A"}
-GitHub URL: ${submission.github_url || "N/A"}
 Figma URL: ${submission.figma_url || "N/A"}
-Code Snippets:
+
+Structured Code Files:
+${structuredCode || "N/A"}
+
+Combined Code Snippet:
 ${submission.code_snippets || "N/A"}
 
 Submission Text / Notes:
@@ -147,7 +190,10 @@ Return valid JSON only in this exact format:
 
 Rules:
 - Score must be from 0 to 100.
-- For code tasks, focus on correctness, structure, readability, error handling, and whether requirements are fulfilled.
+- For code tasks, evaluate the pasted multi-file project structure.
+- For code tasks, check whether file paths, components, modules, logic, readability, error handling, and requirement completion are reasonable.
+- For code tasks, do not expect a GitHub repository.
+- For code tasks, if code is incomplete, missing important files, or has unclear structure, reduce the score and mention what is missing.
 - For writing tasks, focus on grammar, clarity, structure, relevance, and originality.
 - For design tasks, focus on layout, readability, creativity, consistency, and task relevance.
 - For general tasks, evaluate overall completion quality.
@@ -177,17 +223,19 @@ export async function evaluateSubmission(submissionId: string) {
   }
 
   const task = submission.task;
+
   if (!task) {
     throw new Error("Task metadata missing.");
   }
 
   const evaluationType = inferEvaluationType(task);
-
   const currentContent = getSubmissionContent(submission);
 
   const { data: previousSubmissions } = await supabaseAdmin
     .from("task_submissions")
-    .select("id, submission_text, code_snippets, notes, github_url, figma_url, submission_url")
+    .select(
+      "id, submission_text, code_snippets, code_files, notes, figma_url, submission_url",
+    )
     .eq("task_id", submission.task_id)
     .neq("id", submission.id)
     .limit(30);
@@ -197,7 +245,10 @@ export async function evaluateSubmission(submissionId: string) {
   for (const previous of previousSubmissions || []) {
     const previousContent = getSubmissionContent(previous);
     const score = similarity(currentContent, previousContent);
-    if (score > maxSimilarity) maxSimilarity = score;
+
+    if (score > maxSimilarity) {
+      maxSimilarity = score;
+    }
   }
 
   if (!process.env.OPENAI_API_KEY) {
@@ -337,7 +388,6 @@ async function saveEvaluation(submission: any, result: EvaluationResult) {
     .from("task_assignments")
     .update({
       status: "reviewed",
-      mentor_score: result.ai_score,
     })
     .eq("id", submission.assignment_id);
 

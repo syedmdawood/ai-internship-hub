@@ -1,16 +1,58 @@
 // app/api/task/submit/route.ts
+
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { evaluateSubmission } from "@/lib/evaluateSubmission";
 
 export const runtime = "nodejs";
 
-function isGithubUrl(value: string | null | undefined) {
-  return Boolean(value && value.toLowerCase().includes("github.com"));
-}
-
 function isFigmaUrl(value: string | null | undefined) {
   return Boolean(value && value.toLowerCase().includes("figma.com"));
+}
+
+function normalizeCodeFiles(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((file) => {
+      if (!file || typeof file !== "object") return false;
+
+      const item = file as {
+        path?: unknown;
+        language?: unknown;
+        content?: unknown;
+      };
+
+      return (
+        String(item.path || "").trim().length > 0 &&
+        String(item.content || "").trim().length > 0
+      );
+    })
+    .map((file) => {
+      const item = file as {
+        path?: unknown;
+        language?: unknown;
+        content?: unknown;
+      };
+
+      return {
+        path: String(item.path || "").trim(),
+        language: String(item.language || "").trim() || "plain text",
+        content: String(item.content || "").trim(),
+      };
+    });
+}
+
+function buildCombinedCodeSnippet(codeFiles: ReturnType<typeof normalizeCodeFiles>) {
+  return codeFiles
+    .map((file, index) => {
+      return [
+        `===== FILE ${index + 1}: ${file.path} =====`,
+        `Language: ${file.language}`,
+        file.content,
+      ].join("\n");
+    })
+    .join("\n\n");
 }
 
 export async function POST(req: Request) {
@@ -46,6 +88,7 @@ export async function POST(req: Request) {
       taskId,
       files,
       codeSnippet,
+      codeFiles,
       notes,
       projectUrl,
       checklist,
@@ -109,7 +152,8 @@ export async function POST(req: Request) {
     }
 
     const startedAt = new Date(assignment.started_at).getTime();
-    const deadlineMs = startedAt + Number(task.estimated_minutes || 0) * 60 * 1000;
+    const deadlineMs =
+      startedAt + Number(task.estimated_minutes || 0) * 60 * 1000;
 
     if (Date.now() > deadlineMs) {
       await supabaseAdmin
@@ -125,11 +169,15 @@ export async function POST(req: Request) {
 
     const evaluationType = String(task.evaluation_type || "general").toLowerCase();
 
-    if (evaluationType === "code" && !codeSnippet && !isGithubUrl(projectUrl)) {
+    const safeCodeFiles = normalizeCodeFiles(codeFiles);
+    const finalCodeSnippet =
+      String(codeSnippet || "").trim() || buildCombinedCodeSnippet(safeCodeFiles);
+
+    if (evaluationType === "code" && safeCodeFiles.length === 0 && !finalCodeSnippet) {
       return NextResponse.json(
         {
           error:
-            "Code tasks require either a GitHub project URL or pasted code snippet.",
+            "Code tasks require pasted code. Please add at least one file path and code content.",
         },
         { status: 400 },
       );
@@ -175,15 +223,27 @@ export async function POST(req: Request) {
         task_id: taskId,
 
         submission_text: submissionText || null,
-        submission_url: projectUrl || null,
-        github_url: isGithubUrl(projectUrl) ? projectUrl : null,
-        code_snippets: codeSnippet || null,
-        figma_url: isFigmaUrl(projectUrl) ? projectUrl : null,
+
+        // For code tasks, projectUrl/GitHub URL is removed.
+        // For design/general tasks, projectUrl can still be saved.
+        submission_url: evaluationType === "code" ? null : projectUrl || null,
+        github_url: null,
+
+        code_snippets: evaluationType === "code" ? finalCodeSnippet : null,
+        code_files: evaluationType === "code" ? safeCodeFiles : [],
+
+        figma_url:
+          evaluationType === "design" && isFigmaUrl(projectUrl)
+            ? projectUrl
+            : null,
         screenshot_url: screenshotUrl || null,
 
         files: Array.isArray(files) ? files : [],
         notes: notes || null,
-        checklist: checklist || {},
+        checklist:
+          checklist && typeof checklist === "object" && !Array.isArray(checklist)
+            ? checklist
+            : {},
 
         status: "under_review",
         submitted_at: new Date().toISOString(),
@@ -193,6 +253,7 @@ export async function POST(req: Request) {
 
     if (submissionError || !submission) {
       console.error("submission insert error:", submissionError);
+
       return NextResponse.json(
         { error: "Failed to save submission" },
         { status: 500 },
@@ -224,6 +285,7 @@ export async function POST(req: Request) {
         .from("task_submissions")
         .update({
           status: "failed",
+          evaluation_error: evaluationErrorMessage,
           updated_at: new Date().toISOString(),
         })
         .eq("id", submission.id);

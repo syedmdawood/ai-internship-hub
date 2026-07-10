@@ -44,6 +44,13 @@ type StartedTask = {
   } | null;
 };
 
+type CodeFile = {
+  id: string;
+  path: string;
+  language: string;
+  content: string;
+};
+
 const FINAL_STATUSES = [
   "submitted",
   "under_review",
@@ -54,6 +61,20 @@ const FINAL_STATUSES = [
   "finished",
   "cancelled",
 ];
+
+function createCodeFile(): CodeFile {
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`;
+
+  return {
+    id,
+    path: "",
+    language: "tsx",
+    content: "",
+  };
+}
 
 function normalizeStatus(status: string | null | undefined) {
   return (status || "").toLowerCase().replace(/\s+/g, "_");
@@ -111,6 +132,36 @@ function getRemainingText(item: StartedTask, now: number) {
   return formatRemainingTime(deadlineMs - now);
 }
 
+function formatDeliverableType(
+  deliverableType: string | null | undefined,
+  evaluationType: string | null | undefined,
+) {
+  const value = String(deliverableType || "").toLowerCase();
+
+  if (evaluationType === "code" || value === "github_link" || value === "code_files") {
+    return "Structured Code Files";
+  }
+
+  if (value === "figma_url") return "Figma / Screenshot";
+  if (value === "document_url") return "Document / Project URL";
+  if (value === "text") return "Written Text";
+
+  return deliverableType || "-";
+}
+
+function buildCombinedCodeSnippet(codeFiles: CodeFile[]) {
+  return codeFiles
+    .filter((file) => file.path.trim() || file.content.trim())
+    .map((file, index) => {
+      return [
+        `===== FILE ${index + 1}: ${file.path.trim() || "untitled"} =====`,
+        `Language: ${file.language.trim() || "plain text"}`,
+        file.content,
+      ].join("\n");
+    })
+    .join("\n\n");
+}
+
 export default function SubmitPage() {
   const [files, setFiles] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
@@ -120,12 +171,20 @@ export default function SubmitPage() {
   const [myTasks, setMyTasks] = useState<StartedTask[]>([]);
   const [now, setNow] = useState(Date.now());
 
-  const [codeSnippet, setCodeSnippet] = useState("");
+  const [codeFiles, setCodeFiles] = useState<CodeFile[]>([
+    {
+      ...createCodeFile(),
+      path: "src/App.tsx",
+      language: "tsx",
+    },
+  ]);
+
   const [notes, setNotes] = useState("");
   const [projectUrl, setProjectUrl] = useState("");
   const [submissionText, setSubmissionText] = useState("");
   const [screenshotUrl, setScreenshotUrl] = useState("");
   const [evaluation, setEvaluation] = useState<any>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -152,7 +211,6 @@ export default function SubmitPage() {
   }, [myTasks, now]);
 
   const evaluationType = activeTask?.task?.evaluation_type || "general";
-  const deliverableType = activeTask?.task?.deliverable_type || "text";
 
   const isCodeTask = evaluationType === "code";
   const isWritingTask = evaluationType === "writing";
@@ -164,7 +222,6 @@ export default function SubmitPage() {
   }, [myTasks, now]);
 
   const remainingText = activeTask ? getRemainingText(activeTask, now) : "-";
-
   const deadlineMs = activeTask ? getTaskDeadlineMs(activeTask) : null;
 
   async function getAccessToken() {
@@ -213,15 +270,18 @@ export default function SubmitPage() {
       toast.error("No active task found.");
       return;
     }
+
     fileInputRef.current?.click();
   };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = Array.from(e.target.files || []);
 
     if (uploadedFiles.length === 0) return;
 
     const validFiles = uploadedFiles.filter((file) => {
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      const maxSize = 10 * 1024 * 1024;
+
       const allowedTypes = [
         "application/zip",
         "application/x-zip-compressed",
@@ -249,12 +309,45 @@ export default function SubmitPage() {
     e.target.value = "";
   };
 
+  function removeUploadedFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   const handleChecklistChange = (item: string) => {
     setChecklist((prev) => ({
       ...prev,
       [item]: !prev[item],
     }));
   };
+
+  function updateCodeFile(id: string, field: keyof CodeFile, value: string) {
+    setCodeFiles((prev) =>
+      prev.map((file) =>
+        file.id === id
+          ? {
+              ...file,
+              [field]: value,
+            }
+          : file,
+      ),
+    );
+  }
+
+  function addCodeFile() {
+    setCodeFiles((prev) => [...prev, createCodeFile()]);
+  }
+
+  function removeCodeFile(id: string) {
+    setCodeFiles((prev) => {
+      if (prev.length === 1) {
+        toast.error("At least one code file is required.");
+        return prev;
+      }
+
+      return prev.filter((file) => file.id !== id);
+    });
+  }
 
   async function handleSubmit() {
     try {
@@ -265,6 +358,15 @@ export default function SubmitPage() {
 
       if (isTaskExpired(activeTask, Date.now())) {
         toast.error("Submission time is over. You cannot submit this task.");
+        return;
+      }
+
+      const validCodeFiles = codeFiles.filter(
+        (file) => file.path.trim() && file.content.trim(),
+      );
+
+      if (isCodeTask && validCodeFiles.length === 0) {
+        toast.error("Please paste at least one code file with file path and code.");
         return;
       }
 
@@ -281,11 +383,12 @@ export default function SubmitPage() {
         assignmentId: activeTask.id,
         taskId: activeTask.task?.id,
         files,
-        codeSnippet,
+        codeFiles: isCodeTask ? validCodeFiles : [],
+        codeSnippet: isCodeTask ? buildCombinedCodeSnippet(validCodeFiles) : "",
         submissionText,
         screenshotUrl,
         notes,
-        projectUrl,
+        projectUrl: isCodeTask ? "" : projectUrl,
         checklist,
       };
 
@@ -337,6 +440,7 @@ export default function SubmitPage() {
         >
           {evaluation ? "AI Evaluated" : "Under Review"}
         </Badge>
+
         {evaluation ? (
           <Card className="mt-6 w-full max-w-2xl text-left">
             <CardHeader>
@@ -523,7 +627,15 @@ export default function SubmitPage() {
 
               <p>
                 <span className="font-medium">Deliverable:</span>{" "}
-                {activeTask.task?.deliverable_type || "-"}
+                {formatDeliverableType(
+                  activeTask.task?.deliverable_type,
+                  activeTask.task?.evaluation_type,
+                )}
+              </p>
+
+              <p>
+                <span className="font-medium">Evaluation Type:</span>{" "}
+                {activeTask.task?.evaluation_type || "general"}
               </p>
 
               <p>
@@ -562,6 +674,7 @@ export default function SubmitPage() {
                 className="hidden"
                 onChange={handleFileChange}
               />
+
               <div
                 onClick={handleFileAdd}
                 className={cn(
@@ -576,7 +689,9 @@ export default function SubmitPage() {
                   Click to upload or drag and drop
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  ZIP, PDF, PNG, JPG up to 10MB
+                  {isCodeTask
+                    ? "Optional ZIP as supporting evidence. AI evaluates pasted code below."
+                    : "ZIP, PDF, PNG, JPG up to 10MB"}
                 </p>
               </div>
 
@@ -593,9 +708,7 @@ export default function SubmitPage() {
                       </div>
 
                       <button
-                        onClick={() =>
-                          setFiles((prev) => prev.filter((_, i) => i !== idx))
-                        }
+                        onClick={() => removeUploadedFile(idx)}
                         className="text-muted-foreground hover:text-destructive"
                         aria-label={`Remove ${file}`}
                       >
@@ -615,27 +728,78 @@ export default function SubmitPage() {
                   <Code className="h-4 w-4" />
                   Code Task Submission
                 </CardTitle>
+
+                <p className="text-sm text-muted-foreground">
+                  Paste your code file by file. GitHub URL is not required.
+                  At least one file path and code content is required for AI
+                  evaluation.
+                </p>
               </CardHeader>
 
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>GitHub Project URL</Label>
-                  <Input
-                    value={projectUrl}
-                    onChange={(e) => setProjectUrl(e.target.value)}
-                    placeholder="https://github.com/username/project"
-                  />
-                </div>
+              <CardContent className="space-y-5">
+                {codeFiles.map((file, index) => (
+                  <div
+                    key={file.id}
+                    className="space-y-3 rounded-xl border bg-muted/20 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium">File {index + 1}</p>
 
-                <div className="space-y-2">
-                  <Label>Important Code Snippet</Label>
-                  <Textarea
-                    value={codeSnippet}
-                    onChange={(e) => setCodeSnippet(e.target.value)}
-                    placeholder="Paste your main code here..."
-                    className="min-h-[180px] font-mono text-sm"
-                  />
-                </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeCodeFile(file.id)}
+                        disabled={codeFiles.length === 1}
+                      >
+                        <X className="mr-1 h-4 w-4" />
+                        Remove
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Folder / File Path *</Label>
+                        <Input
+                          value={file.path}
+                          onChange={(e) =>
+                            updateCodeFile(file.id, "path", e.target.value)
+                          }
+                          placeholder="Example: src/components/Navbar.tsx"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Language / Extension</Label>
+                        <Input
+                          value={file.language}
+                          onChange={(e) =>
+                            updateCodeFile(file.id, "language", e.target.value)
+                          }
+                          placeholder="Example: tsx, js, py, html, css"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Code *</Label>
+                      <Textarea
+                        value={file.content}
+                        onChange={(e) =>
+                          updateCodeFile(file.id, "content", e.target.value)
+                        }
+                        placeholder={`Paste code for ${
+                          file.path || "this file"
+                        } here...`}
+                        className="min-h-[220px] font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <Button type="button" variant="outline" onClick={addCodeFile}>
+                  + Add Another File
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -745,25 +909,6 @@ export default function SubmitPage() {
               ))}
             </CardContent>
           </Card>
-
-          {/* <Card className="border-border/50 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">Project URL Optional</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <Label htmlFor="url" className="sr-only">
-                Project URL
-              </Label>
-
-              <Input
-                id="url"
-                value={projectUrl}
-                onChange={(e) => setProjectUrl(e.target.value)}
-                placeholder="https://your-project.vercel.app"
-              />
-            </CardContent>
-          </Card> */}
 
           <Button
             className="w-full"

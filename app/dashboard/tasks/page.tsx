@@ -6,13 +6,27 @@ import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
+type EvaluationType = "code" | "writing" | "design" | "general";
+
 type RecommendedTask = {
   id: string;
   title: string;
   description: string;
   difficulty_level: "beginner" | "intermediate" | "advanced";
   estimated_minutes: number;
-  deliverable_type: "text" | "github_link" | "figma_url" | "document_url";
+
+  // Keep string also, because old DB rows may still contain github_link.
+  deliverable_type:
+    | "text"
+    | "code_files"
+    | "github_link"
+    | "figma_url"
+    | "document_url"
+    | string;
+
+  evaluation_type?: EvaluationType | null;
+  evaluation_criteria?: any | null;
+
   instructions: string | null;
   tags: string[] | null;
   recommendation_score: number;
@@ -34,7 +48,13 @@ type StartedTask = {
     description: string;
     difficulty_level: string;
     estimated_minutes: number;
+
+    // Keep string also, because old DB rows may still contain github_link.
     deliverable_type: string;
+
+    evaluation_type?: EvaluationType | null;
+    evaluation_criteria?: any | null;
+
     instructions: string | null;
     tags: string[] | null;
   } | null;
@@ -66,12 +86,18 @@ const FINAL_STATUSES = [
   "cancelled",
 ];
 
+const FEEDBACK_STATUSES = ["reviewed", "completed", "approved", "evaluated"];
+
 function normalizeStatus(status: string | null | undefined) {
   return (status || "").toLowerCase().replace(/\s+/g, "_");
 }
 
 function isFinalStatus(status: string | null | undefined) {
   return FINAL_STATUSES.includes(normalizeStatus(status));
+}
+
+function canViewFeedback(status: string | null | undefined) {
+  return FEEDBACK_STATUSES.includes(normalizeStatus(status));
 }
 
 function getTaskDeadlineMs(item: StartedTask) {
@@ -122,6 +148,27 @@ function getRemainingText(item: StartedTask, now: number) {
   return formatRemainingTime(deadlineMs - now);
 }
 
+function formatDeliverableType(
+  deliverableType: string | null | undefined,
+  evaluationType?: EvaluationType | null,
+) {
+  const value = String(deliverableType || "").toLowerCase();
+
+  if (
+    evaluationType === "code" ||
+    value === "code_files" ||
+    value === "github_link"
+  ) {
+    return "Structured Code Files";
+  }
+
+  if (value === "figma_url") return "Figma / Screenshot";
+  if (value === "document_url") return "Document / Project URL";
+  if (value === "text") return "Written Text";
+
+  return deliverableType || "-";
+}
+
 export default function TasksPage() {
   const router = useRouter();
 
@@ -132,7 +179,9 @@ export default function TasksPage() {
 
   const [recommendations, setRecommendations] = useState<RecommendedTask[]>([]);
   const [myTasks, setMyTasks] = useState<StartedTask[]>([]);
-  const [profileContext, setProfileContext] = useState<ProfileContext | null>(null);
+  const [profileContext, setProfileContext] = useState<ProfileContext | null>(
+    null,
+  );
   const [progress, setProgress] = useState<ProgressSummary | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -269,7 +318,9 @@ export default function TasksPage() {
   async function handleStartTask(taskId: string) {
     try {
       if (activeTask) {
-        toast.error("You already have one task in progress. Submit it or wait until it expires.");
+        toast.error(
+          "You already have one task in progress. Submit it or wait until it expires.",
+        );
         return;
       }
 
@@ -334,7 +385,9 @@ export default function TasksPage() {
           <p className="font-medium">You already have one task in progress.</p>
           <p className="mt-1">
             Current Task: {activeTask.task?.title || "Task"} | Remaining Time:{" "}
-            <span className="font-semibold">{getRemainingText(activeTask, now)}</span>
+            <span className="font-semibold">
+              {getRemainingText(activeTask, now)}
+            </span>
           </p>
         </div>
       ) : null}
@@ -387,8 +440,8 @@ export default function TasksPage() {
         <div>
           <h2 className="text-lg font-semibold">AI Recommended Tasks</h2>
           <p className="text-sm text-muted-foreground">
-            The system selects suitable tasks from your recommended domains.
-            You can start only one task at a time.
+            The system selects suitable tasks from your recommended domains. You
+            can start only one task at a time.
           </p>
         </div>
 
@@ -450,7 +503,15 @@ export default function TasksPage() {
 
                     <p>
                       <span className="font-medium">Deliverable:</span>{" "}
-                      {task.deliverable_type}
+                      {formatDeliverableType(
+                        task.deliverable_type,
+                        task.evaluation_type,
+                      )}
+                    </p>
+
+                    <p>
+                      <span className="font-medium">Evaluation Type:</span>{" "}
+                      {task.evaluation_type || "general"}
                     </p>
 
                     <p>
@@ -522,6 +583,8 @@ export default function TasksPage() {
               const expired = isTaskExpired(item, now);
               const active = isTaskActive(item, now);
               const remainingText = getRemainingText(item, now);
+              const status = normalizeStatus(item.status);
+              const showFeedback = canViewFeedback(item.status);
 
               return (
                 <div
@@ -544,22 +607,24 @@ export default function TasksPage() {
                           expired
                             ? "rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700"
                             : active
-                            ? "rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700"
-                            : "rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
+                              ? "rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700"
+                              : showFeedback
+                                ? "rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
+                                : "rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
                         }
                       >
                         {expired ? "expired" : item.status}
                       </span>
 
-                      {item.started_at ? (
-                        <p
-                          className={
-                            expired
-                              ? "mt-2 text-xs font-medium text-red-600"
-                              : "mt-2 text-xs font-medium text-amber-700"
-                          }
-                        >
-                          {expired ? "Time over" : `Remaining: ${remainingText}`}
+                      {item.started_at && active ? (
+                        <p className="mt-2 text-xs font-medium text-amber-700">
+                          Remaining: {remainingText}
+                        </p>
+                      ) : null}
+
+                      {item.started_at && expired ? (
+                        <p className="mt-2 text-xs font-medium text-red-600">
+                          Time over
                         </p>
                       ) : null}
                     </div>
@@ -578,7 +643,15 @@ export default function TasksPage() {
 
                     <p>
                       <span className="font-medium">Deliverable:</span>{" "}
-                      {item.task?.deliverable_type || "-"}
+                      {formatDeliverableType(
+                        item.task?.deliverable_type,
+                        item.task?.evaluation_type,
+                      )}
+                    </p>
+
+                    <p>
+                      <span className="font-medium">Evaluation Type:</span>{" "}
+                      {item.task?.evaluation_type || "general"}
                     </p>
 
                     <p>
@@ -587,11 +660,18 @@ export default function TasksPage() {
                         ? new Date(item.started_at).toLocaleString()
                         : "-"}
                     </p>
+
+                    <p>
+                      <span className="font-medium">Status:</span>{" "}
+                      {item.status || "-"}
+                    </p>
                   </div>
 
                   {item.recommendation_score ? (
                     <p className="mt-3 text-sm">
-                      <span className="font-medium">AI Score:</span>{" "}
+                      <span className="font-medium">
+                        AI Recommendation Score:
+                      </span>{" "}
                       {item.recommendation_score}/100
                     </p>
                   ) : null}
@@ -609,19 +689,39 @@ export default function TasksPage() {
                     </div>
                   ) : null}
 
-                  {active ? (
-                    <div className="mt-4 flex justify-end">
-                      <Link href="/dashboard/submit">
+                  {status === "under_review" ? (
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                      Your submission is under AI review. Feedback will appear
+                      after evaluation is completed.
+                    </div>
+                  ) : null}
+
+                  {expired ? (
+                    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      Submission time is over. This task cannot be submitted
+                      now.
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    {active ? (
+                      <Link href={`/dashboard/submit/${item.id}`}>
                         <button className="rounded-lg bg-black px-4 py-2 text-sm text-white">
                           Submit Work
                         </button>
                       </Link>
-                    </div>
-                  ) : expired ? (
-                    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                      Submission time is over. This task cannot be submitted now.
-                    </div>
-                  ) : null}
+                    ) : null}
+
+                    {showFeedback ? (
+                      <Link
+                        href={`/dashboard/feedback?assignmentId=${item.id}`}
+                      >
+                        <button className="rounded-lg border px-4 py-2 text-sm">
+                          View AI Feedback
+                        </button>
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
               );
             })}
