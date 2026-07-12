@@ -1,72 +1,113 @@
-"use client"
-import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
-import { useRouter } from "next/navigation"
-import { MentorNavbar } from "@/components/mentor/admin-navbar"
-import { MentorSidebar } from "@/components/mentor/mentor-sidebar"
+"use client";
 
-export default function AdminLayout({
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import { MentorNavbar } from "@/components/mentor/admin-navbar";
+import { MentorSidebar } from "@/components/mentor/mentor-sidebar";
+
+export default function MentorLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
+  const router = useRouter();
 
-  const router = useRouter()
-  const [checkingAuth, setCheckingAuth] = useState(true)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [checkingAuth, setCheckingAuth] =
+    useState(true);
+
+  const [mobileNavOpen, setMobileNavOpen] =
+    useState(false);
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession()
-      const session = data.session
+    let mounted = true;
 
-      if (!session) {
-        router.replace("/login")
-        return
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!mounted) {
+        return;
       }
 
-      const user = session.user
-      const role = user.app_metadata?.role
-      const setPassword = user.app_metadata?.setPassword
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
 
-      // Redirect if password not set
-      if (setPassword === false) {
-        router.replace("/create-password")
-        return
+      const user = session.user;
+      const role = user.app_metadata?.role;
+
+      const passwordIsSet =
+        user.app_metadata?.setPassword ??
+        user.app_metadata?.set_password ??
+        true;
+
+      if (passwordIsSet === false) {
+        router.replace("/create-password");
+        return;
       }
 
       if (role === "admin") {
-        router.replace("/admin")
-        return
-      } else if (role === "mentor") {
-        // Admin is allowed, so stop checking
-        setCheckingAuth(false)
-        return
-      } else {
-        // Any other role not allowed in admin
-        router.replace("/login")
-        return
+        router.replace("/admin");
+        return;
       }
-    }
 
-    checkSession()
-  }, [router])
+      if (role !== "mentor") {
+        router.replace("/login");
+        return;
+      }
+
+      setCheckingAuth(false);
+    };
+
+    checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!session) {
+          router.replace("/login");
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   if (checkingAuth) {
     return (
       <div className="dark min-h-screen flex items-center justify-center bg-background text-foreground">
-        <p>Checking authentication...</p>
+        <p>Checking mentor authentication...</p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="dark min-h-screen bg-background text-foreground">
-      <MentorSidebar mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
+      <MentorSidebar
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() =>
+          setMobileNavOpen(false)
+        }
+      />
+
       <div className="md:ml-64">
-        <MentorNavbar onOpenMobileMenu={() => setMobileNavOpen(true)} />
-        <main className="p-4 sm:p-6">{children}</main>
+        <MentorNavbar
+          onOpenMobileMenu={() =>
+            setMobileNavOpen(true)
+          }
+        />
+
+        <main className="p-4 sm:p-6">
+          {children}
+        </main>
       </div>
     </div>
-  )
+  );
 }

@@ -420,43 +420,122 @@ export async function POST(req: Request) {
           : null;
     }
 
+    const { data: existingProfile, error: existingProfileError } =
+      await supabaseAdmin
+        .from("profiles")
+        .select(
+          `
+          id,
+          task_domains_confirmed,
+          primary_domain,
+          primary_domain_id,
+          secondary_domain_id,
+          domain_selection_source,
+          domain_selection_updated_at
+        `,
+        )
+        .eq("id", user.id)
+        .single();
+
+    if (existingProfileError || !existingProfile) {
+      console.error("Failed to load existing profile:", existingProfileError);
+
+      return Response.json({ error: "Profile not found." }, { status: 404 });
+    }
+
+    const now = new Date().toISOString();
+
+    /*
+     * These fields are updated after every assessment.
+     * They represent the latest AI assessment result.
+     */
+    const profileUpdate: Record<string, unknown> = {
+      recommended_domain: primaryDomain,
+      secondary_domains: secondaryDomains,
+
+      current_skill_level: skillLevel,
+      skill_level: skillLevel,
+      last_assessment_at: now,
+
+      selected_task_domain_id: null,
+      updated_at: now,
+    };
+
+    /*
+     * Only prepare the initial domain selection when
+     * the student has never confirmed domains before.
+     *
+     * After task_domains_confirmed becomes true,
+     * another assessment must not change the student's
+     * permanent primary and secondary task domains.
+     */
+    if (!existingProfile.task_domains_confirmed) {
+      profileUpdate.primary_domain = null;
+      profileUpdate.primary_domain_id = primaryDomainId;
+      profileUpdate.secondary_domain_id = secondaryDomainId;
+
+      profileUpdate.task_domains_confirmed = false;
+      profileUpdate.domain_selection_source = null;
+      profileUpdate.domain_selection_updated_at = null;
+    }
+
     const { error: profileUpdateError } = await supabaseAdmin
       .from("profiles")
-      .update({
-        primary_domain: primaryDomain,
-        recommended_domain: primaryDomain,
-        secondary_domains: secondaryDomains,
-        primary_domain_id: primaryDomainId,
-        secondary_domain_id: secondaryDomainId,
-        current_skill_level: skillLevel,
-        skill_level: skillLevel,
-        last_assessment_at: new Date().toISOString(),
-        selected_task_domain_id: null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(profileUpdate)
       .eq("id", user.id);
 
     if (profileUpdateError) {
       console.error("profiles update error:", profileUpdateError);
+
+      return Response.json(
+        { error: "Failed to update student profile." },
+        { status: 500 },
+      );
     }
 
+    /*
+     * Return the assessment result expected by
+     * the assessment frontend.
+     */
     return Response.json({
+      success: true,
       assessmentResultId: savedResult.id,
+
       recommendedDomains: [primaryDomain, ...secondaryDomains],
+
+      primaryDomain,
+      secondaryDomains,
+
       skillLevel,
       aiRecommendation: aiRecommendationText,
+
       totalScore,
       totalQuestions,
       percentageScore,
       domainScores,
+
       primaryDomainId,
       secondaryDomainId,
+
+      /*
+       * The frontend can use this to understand whether
+       * the student still needs to confirm task domains.
+       */
+      taskDomainsAlreadyConfirmed:
+        existingProfile.task_domains_confirmed === true,
+
+      needsDomainConfirmation: existingProfile.task_domains_confirmed !== true,
     });
   } catch (error) {
     console.error("ASSESSMENT SUBMIT ERROR:", error);
 
     return Response.json(
-      { error: "Failed to submit assessment." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to submit assessment.",
+      },
       { status: 500 },
     );
   }

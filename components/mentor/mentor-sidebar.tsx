@@ -1,44 +1,54 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
   Brain,
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
   X,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { useState } from "react"
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 const navItems = [
-  { href: "/mentor", icon: LayoutDashboard, label: "Dashboard" },
-//   { href: "/dashboard/assessment", icon: ClipboardCheck, label: "Skill Assessment" },
-//   { href: "/dashboard/tasks", icon: ListTodo, label: "My Tasks" },
-//   { href: "/dashboard/submit/1", icon: Upload, label: "Submit Work" },
-//   { href: "/dashboard/feedback", icon: MessageSquareText, label: "AI Feedback" },
-//   { href: "/dashboard/portfolio", icon: FolderOpen, label: "Portfolio" },
-//   { href: "/dashboard/chatbot", icon: MessageCircle, label: "Chatbot" },
-//   { href: "/dashboard/settings", icon: Settings, label: "Settings" },
-]
+  {
+    label: "Dashboard",
+    href: "/mentor",
+  },
+  // {
+  //   label: "Students",
+  //   href: "/mentor#students",
+  // },
+  //   { href: "/dashboard/assessment", icon: ClipboardCheck, label: "Skill Assessment" },
+  //   { href: "/dashboard/tasks", icon: ListTodo, label: "My Tasks" },
+  //   { href: "/dashboard/submit/1", icon: Upload, label: "Submit Work" },
+  //   { href: "/dashboard/feedback", icon: MessageSquareText, label: "AI Feedback" },
+  //   { href: "/dashboard/portfolio", icon: FolderOpen, label: "Portfolio" },
+  //   { href: "/dashboard/chatbot", icon: MessageCircle, label: "Chatbot" },
+  //   { href: "/dashboard/settings", icon: Settings, label: "Settings" },
+];
 
 interface MentorSidebarProps {
-  mobileOpen?: boolean
-  onMobileClose?: () => void
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-export function MentorSidebar({ mobileOpen = false, onMobileClose }: MentorSidebarProps) {
-  const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
+export function MentorSidebar({
+  mobileOpen = false,
+  onMobileClose,
+}: MentorSidebarProps) {
+  const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
     <>
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 hidden h-screen border-r border-sidebar-border bg-sidebar transition-all duration-300 md:block",
-          collapsed ? "w-16" : "w-64"
+          collapsed ? "w-16" : "w-64",
         )}
       >
         <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
@@ -47,7 +57,9 @@ export function MentorSidebar({ mobileOpen = false, onMobileClose }: MentorSideb
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
                 <Brain className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-base font-bold text-sidebar-foreground">InternHub AI</span>
+              <span className="text-base font-bold text-sidebar-foreground">
+                InternHub AI
+              </span>
             </Link>
           )}
           {collapsed && (
@@ -71,7 +83,9 @@ export function MentorSidebar({ mobileOpen = false, onMobileClose }: MentorSideb
 
         <nav className="flex flex-col gap-1 p-3">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/mentor" && pathname.startsWith(item.href))
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/mentor" && pathname.startsWith(item.href));
             return (
               <Link
                 key={item.href}
@@ -80,13 +94,18 @@ export function MentorSidebar({ mobileOpen = false, onMobileClose }: MentorSideb
                   "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-primary"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
               >
-                <item.icon className={cn("h-5 w-5 shrink-0", isActive && "text-sidebar-primary")} />
+                {/* <item.icon
+                  className={cn(
+                    "h-5 w-5 shrink-0",
+                    isActive && "text-sidebar-primary",
+                  )}
+                /> */}
                 {!collapsed && <span>{item.label}</span>}
               </Link>
-            )
+            );
           })}
         </nav>
 
@@ -114,17 +133,28 @@ export function MentorSidebar({ mobileOpen = false, onMobileClose }: MentorSideb
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-72 border-r border-sidebar-border bg-sidebar transition-transform duration-300 md:hidden",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-          <Link href="/" className="flex items-center gap-2" onClick={onMobileClose}>
+          <Link
+            href="/"
+            className="flex items-center gap-2"
+            onClick={onMobileClose}
+          >
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shrink-0">
               <Brain className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-base font-bold text-sidebar-foreground">InternHub AI</span>
+            <span className="text-base font-bold text-sidebar-foreground">
+              InternHub AI
+            </span>
           </Link>
-          <Button variant="ghost" size="icon" onClick={onMobileClose} className="h-8 w-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onMobileClose}
+            className="h-8 w-8"
+          >
             <X className="h-4 w-4" />
             <span className="sr-only">Close menu</span>
           </Button>
@@ -132,7 +162,9 @@ export function MentorSidebar({ mobileOpen = false, onMobileClose }: MentorSideb
 
         <nav className="flex flex-col gap-1 p-3">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/mentor" && pathname.startsWith(item.href))
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/mentor" && pathname.startsWith(item.href));
             return (
               <Link
                 key={item.href}
@@ -142,16 +174,21 @@ export function MentorSidebar({ mobileOpen = false, onMobileClose }: MentorSideb
                   "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-primary"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
               >
-                <item.icon className={cn("h-5 w-5 shrink-0", isActive && "text-sidebar-primary")} />
+                {/* <item.icon
+                  className={cn(
+                    "h-5 w-5 shrink-0",
+                    isActive && "text-sidebar-primary",
+                  )}
+                /> */}
                 <span>{item.label}</span>
               </Link>
-            )
+            );
           })}
         </nav>
       </aside>
     </>
-  )
+  );
 }

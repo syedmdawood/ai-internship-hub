@@ -1,228 +1,433 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { useState } from "react"
-import { StatsCard } from "@/components/stats-card"
-import { ProgressBar } from "@/components/progress-bar"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Users, TrendingUp, Award, Search, MessageSquare, Brain, ArrowLeft } from "lucide-react"
-import { mentorStudents } from "@/lib/mock-data"
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
+import Link from "next/link";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-const chartData = mentorStudents.map((s) => ({
-  name: s.name.split(" ")[0],
-  score: s.avgScore,
-  progress: s.progress,
-}))
+import { supabase } from "@/lib/supabaseClient";
+
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/ui/avatar";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+import { Input } from "@/components/ui/input";
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import {
+  Eye,
+  Search,
+  Users,
+} from "lucide-react";
+
+type MentorStudent = {
+  id: string;
+  name: string;
+  email: string;
+  domain: string;
+  skillLevel: string;
+  skills: string[];
+  avatarUrl: string | null;
+  totalTasks: number;
+  tasksCompleted: number;
+  pendingReviews: number;
+  progress: number;
+  averageScore: number;
+  lastActive: string | null;
+};
+
+type DashboardResponse = {
+  success?: boolean;
+  students: MentorStudent[];
+};
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "No activity";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "No activity";
+  }
+
+  return new Intl.DateTimeFormat("en-PK", {
+    dateStyle: "medium",
+  }).format(date);
+}
 
 export default function MentorPage() {
-  const [search, setSearch] = useState("")
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
-  const [selectedStudent, setSelectedStudent] = useState<string>("")
+  const [students, setStudents] = useState<
+    MentorStudent[]
+  >([]);
 
-  const filtered = mentorStudents.filter(
-    (s) =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.domain.toLowerCase().includes(search.toLowerCase())
-  )
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] = useState<
+    string | null
+  >(null);
+
+  const loadStudents = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      if (!session) {
+        throw new Error(
+          "Your session has expired. Please log in again."
+        );
+      }
+
+      const response = await fetch(
+        "/api/mentor/dashboard",
+        {
+          method: "GET",
+          headers: {
+            Authorization:
+              `Bearer ${session.access_token}`,
+          },
+          cache: "no-store",
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result.error ||
+            "Unable to load students"
+        );
+      }
+
+      const dashboardData =
+        result as DashboardResponse;
+
+      const receivedStudents =
+        Array.isArray(dashboardData.students)
+          ? dashboardData.students
+          : [];
+
+      /*
+       * Ensure that every student is displayed
+       * only once, even if duplicate data is
+       * accidentally returned by the API.
+       */
+      const uniqueStudentMap = new Map<
+        string,
+        MentorStudent
+      >();
+
+      for (const student of receivedStudents) {
+        if (
+          student.id &&
+          !uniqueStudentMap.has(student.id)
+        ) {
+          uniqueStudentMap.set(
+            student.id,
+            student
+          );
+        }
+      }
+
+      setStudents(
+        Array.from(uniqueStudentMap.values())
+      );
+    } catch (loadError) {
+      console.error(
+        "Mentor students loading error:",
+        loadError
+      );
+
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to load students"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
+
+  const filteredStudents = useMemo(() => {
+    const searchValue = search
+      .trim()
+      .toLowerCase();
+
+    if (!searchValue) {
+      return students;
+    }
+
+    return students.filter((student) => {
+      const name =
+        student.name?.toLowerCase() ?? "";
+
+      const email =
+        student.email?.toLowerCase() ?? "";
+
+      const domain =
+        student.domain?.toLowerCase() ?? "";
+
+      const skillLevel =
+        student.skillLevel?.toLowerCase() ??
+        "";
+
+      return (
+        name.includes(searchValue) ||
+        email.includes(searchValue) ||
+        domain.includes(searchValue) ||
+        skillLevel.includes(searchValue)
+      );
+    });
+  }, [search, students]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-muted-foreground">
+          Loading all students...
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border-border/50">
+        <CardContent className="py-12 text-center">
+          <p className="mb-4 text-destructive">
+            {error}
+          </p>
+
+          <Button onClick={loadStudents}>
+            Try Again
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/50 bg-background/80 backdrop-blur-lg px-6">
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ArrowLeft className="h-4 w-4" />
-              <span className="sr-only">Back to home</span>
-            </Button>
-          </Link>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Brain className="h-5 w-5 text-primary-foreground" />
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">
+          All Students
+        </h1>
+
+        <p className="mt-1 text-muted-foreground">
+          View all registered students and open
+          their individual progress records.
+        </p>
+      </div>
+
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-5 w-5" />
+
+              All Students
+
+              <Badge variant="secondary">
+                {students.length}
+              </Badge>
+            </CardTitle>
+
+            <div className="relative w-full sm:max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+              <Input
+                value={search}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
+                placeholder="Search by name, email or domain..."
+                className="pl-9"
+              />
+            </div>
           </div>
-          <span className="text-lg font-bold text-foreground">Mentor Dashboard</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">MT</AvatarFallback>
-          </Avatar>
-        </div>
-      </header>
+        </CardHeader>
 
-      <main className="p-6 max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Mentor Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Track student progress and provide feedback.</p>
-        </div>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>
+                    Student
+                  </TableHead>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatsCard
-            title="Total Students"
-            value={mentorStudents.length}
-            icon={Users}
-            trend={{ value: 8, positive: true }}
-          />
-          <StatsCard
-            title="Average Score"
-            value="83%"
-            icon={TrendingUp}
-            trend={{ value: 3, positive: true }}
-          />
-          <StatsCard
-            title="Top Performer"
-            value="Sam Kim"
-            subtitle="91% average score"
-            icon={Award}
-          />
-        </div>
+                  <TableHead>
+                    Domain
+                  </TableHead>
 
-        {/* Performance Chart */}
-        <Card className="border-border/50 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Student Performance Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} barGap={4}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="name" className="text-xs" tick={{ fill: 'var(--color-muted-foreground)' }} />
-                  <YAxis className="text-xs" tick={{ fill: 'var(--color-muted-foreground)' }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'var(--color-card)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '0.5rem',
-                      fontSize: '0.75rem',
-                    }}
-                  />
-                  <Bar dataKey="score" fill="var(--color-primary)" radius={[4, 4, 0, 0]} name="Avg Score" />
-                  <Bar dataKey="progress" fill="var(--color-accent)" radius={[4, 4, 0, 0]} name="Progress" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+                  <TableHead>
+                    Skill Level
+                  </TableHead>
 
-        {/* Student List */}
-        <Card className="border-border/50 shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-4">
-              <CardTitle className="text-base">Students</CardTitle>
-              <div className="relative max-w-xs w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search students..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 h-9"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Student</TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Domain</TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Progress</TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Tasks</TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Avg Score</TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Last Active</TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((student) => (
-                    <TableRow key={student.id} className="border-border/50">
+                  <TableHead>
+                    Average Score
+                  </TableHead>
+
+                  <TableHead>
+                    Last Active
+                  </TableHead>
+
+                  <TableHead className="text-right">
+                    Action
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {filteredStudents.map(
+                  (student) => (
+                    <TableRow key={student.id}>
                       <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                              {student.name.split(" ").map((n) => n[0]).join("")}
+                        <div className="flex min-w-[220px] items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            {student.avatarUrl ? (
+                              <AvatarImage
+                                src={
+                                  student.avatarUrl
+                                }
+                                alt={student.name}
+                              />
+                            ) : null}
+
+                            <AvatarFallback>
+                              {getInitials(
+                                student.name ||
+                                  "Student"
+                              )}
                             </AvatarFallback>
                           </Avatar>
+
                           <div>
-                            <p className="text-sm font-medium text-foreground">{student.name}</p>
-                            <p className="text-xs text-muted-foreground">{student.email}</p>
+                            <p className="font-medium">
+                              {student.name ||
+                                "Unnamed Student"}
+                            </p>
+
+                            <p className="text-xs text-muted-foreground">
+                              {student.email ||
+                                "Email unavailable"}
+                            </p>
                           </div>
                         </div>
                       </TableCell>
+
                       <TableCell>
-                        <Badge variant="secondary" className="text-xs">{student.domain}</Badge>
-                      </TableCell>
-                      <TableCell className="min-w-[120px]">
-                        <ProgressBar value={student.progress} showValue size="sm" />
-                      </TableCell>
-                      <TableCell className="text-sm text-foreground">{student.tasksCompleted}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            student.avgScore >= 85
-                              ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                              : student.avgScore >= 75
-                              ? "bg-amber-100 text-amber-700 border-amber-200"
-                              : "bg-red-100 text-red-700 border-red-200"
-                          }
-                        >
-                          {student.avgScore}%
+                        <Badge variant="secondary">
+                          {student.domain ||
+                            "Not selected"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{student.lastActive}</TableCell>
+
                       <TableCell>
+                        <Badge variant="outline">
+                          {student.skillLevel ||
+                            "Not assessed"}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell>
+                        <Badge variant="outline">
+                          {student.averageScore}%
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(
+                          student.lastActive
+                        )}
+                      </TableCell>
+
+                      <TableCell className="text-right">
                         <Button
-                          variant="ghost"
+                          asChild
+                          variant="outline"
                           size="sm"
-                          onClick={() => {
-                            setSelectedStudent(student.name)
-                            setFeedbackOpen(true)
-                          }}
                         >
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Feedback
+                          <Link
+                            href={`/mentor/students/${student.id}`}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+
+                            View Progress
+                          </Link>
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
+                  )
+                )}
 
-      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Send Feedback</DialogTitle>
-            <DialogDescription>Provide feedback to {selectedStudent}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="feedback-subject">Subject</Label>
-              <Input id="feedback-subject" placeholder="e.g., Task Review" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="feedback-message">Message</Label>
-              <Textarea id="feedback-message" placeholder="Write your feedback..." className="min-h-[120px]" />
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setFeedbackOpen(false)}>Cancel</Button>
-              <Button onClick={() => setFeedbackOpen(false)}>Send Feedback</Button>
-            </div>
+                {filteredStudents.length ===
+                  0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="py-12 text-center text-muted-foreground"
+                    >
+                      {search
+                        ? "No students match your search."
+                        : "No students are available."}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
-        </DialogContent>
-      </Dialog>
+        </CardContent>
+      </Card>
     </div>
-  )
+  );
 }
