@@ -1,147 +1,167 @@
-import { PortfolioCard } from "@/components/portfolio-card";
-import { ProgressBar } from "@/components/progress-bar";
+"use client";
+
+import { useEffect, useState } from "react";
+
+import { supabase } from "@/lib/supabaseClient";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Badge } from "@/components/ui/badge";
+
+import { PortfolioCard } from "@/components/portfolio/portfolio-card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Download, ExternalLink, MapPin, Calendar, Award } from "lucide-react";
-import { portfolioProjects, skills, stats } from "@/lib/mock-data";
 
 export default function PortfolioPage() {
+  const [portfolio, setPortfolio] = useState<any>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    async function loadPortfolio() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          console.log("No active session");
+
+          setLoading(false);
+
+          return;
+        }
+
+        const res = await fetch("/api/student/portfolio", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        const data = await res.json();
+
+        console.log("Portfolio API Response:", data);
+
+        setPortfolio(data);
+      } catch (error) {
+        console.log("Portfolio error:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadPortfolio();
+  }, []);
+
+  if (loading) {
+    return <div>Loading portfolio...</div>;
+  }
+
+  if (!portfolio) {
+    return <div>Unable to load portfolio</div>;
+  }
+
+  async function generatePortfolio() {
+    try {
+      setGenerating(true);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        console.log("No session");
+
+        return;
+      }
+
+      const res = await fetch("/api/student/portfolio/generate", {
+        method: "POST",
+
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      console.log("AI Portfolio Result:", data);
+
+      if (data.success) {
+
+  console.log(
+    "AI generation completed successfully"
+  );
+
+}
+    } catch (error) {
+      console.log("Generate error:", error);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">My Portfolio</h1>
+          <h1 className="text-2xl font-bold">My Portfolio</h1>
+
           <p className="text-muted-foreground mt-1">
-            Your professional showcase powered by AI-scored projects.
+            Your professional showcase powered by AI evaluation and mentor
+            feedback.
           </p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline">
-            <ExternalLink className="mr-2 h-4 w-4" />
-            Share
-          </Button>
-          <Button>
-            <Download className="mr-2 h-4 w-4" />
-            Download PDF
-          </Button>
-        </div>
+
+        <Button onClick={generatePortfolio} disabled={generating}>
+          {generating ? "Generating..." : "Generate AI Portfolio"}
+        </Button>
       </div>
 
-      <div>Extra div</div>
-      <div>Extra div</div>
-      <div>Extra div</div>
-      <div>Extra div</div>
-      <div>Extra div</div>
-      <div>Extra div</div>
-      <Card className="border-border/50 shadow-sm overflow-hidden">
-        <div className="h-24 bg-primary/10" />
-        <CardContent className="relative pb-6 px-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 -mt-10">
-            <Avatar className="h-20 w-20 border-4 border-card">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xl font-bold">
-                JD
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-foreground">John Doe</h2>
-              <p className="text-sm text-muted-foreground">
-                Full-Stack Web Developer
-              </p>
-              <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" /> Remote
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" /> Joined Jan 2026
-                </span>
-                <span className="flex items-center gap-1">
-                  <Award className="h-3 w-3" /> Avg. Score: {stats.averageScore}
-                  %
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 text-center">
-              <div>
-                <p className="text-2xl font-bold text-foreground">
-                  {stats.tasksCompleted}
-                </p>
-                <p className="text-xs text-muted-foreground">Tasks Done</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">
-                  {stats.portfolioProjects}
-                </p>
-                <p className="text-xs text-muted-foreground">Projects</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-primary">
-                  {stats.averageScore}%
-                </p>
-                <p className="text-xs text-muted-foreground">Avg Score</p>
-              </div>
-            </div>
+      {/* Portfolio Header */}
+
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-xl font-bold">{portfolio.profile?.name}</h2>
+
+          <p className="text-primary font-medium mt-1">
+            {portfolio.profile?.primary_domain}
+          </p>
+
+          <p className="text-muted-foreground mt-2">
+            {portfolio.profile?.bio ??
+              "Build your professional portfolio from completed internship projects."}
+          </p>
+
+          <div className="flex flex-wrap gap-2 mt-4">
+            {portfolio.profile?.skills?.map((skill: string) => (
+              <Badge key={skill} variant="outline">
+                {skill}
+              </Badge>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Projects */}
-          <div>
-            <h2 className="text-lg font-semibold text-foreground mb-4">
-              Projects
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {portfolioProjects.map((project) => (
-                <PortfolioCard key={project.id} {...project} />
+      {/* Projects */}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Projects</CardTitle>
+        </CardHeader>
+
+        <CardContent>
+          {!portfolio.projects || portfolio.projects.length === 0 ? (
+            <p className="text-muted-foreground">No completed projects yet.</p>
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2">
+              {portfolio.projects.map((project: any) => (
+                <PortfolioCard key={project.id} project={project} />
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Skills Sidebar */}
-        <div className="space-y-6">
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">Skills</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {skills.map((skill) => (
-                <ProgressBar
-                  key={skill.name}
-                  value={skill.level}
-                  label={skill.name}
-                  size="sm"
-                />
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">Badges</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  "Fast Learner",
-                  "Top Performer",
-                  "5-Day Streak",
-                  "First Submission",
-                  "Code Master",
-                  "Design Pro",
-                ].map((badge) => (
-                  <Badge key={badge} variant="secondary" className="px-3 py-1">
-                    {badge}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
