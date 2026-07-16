@@ -34,6 +34,7 @@ import {
   MoreHorizontal,
   FileText,
   BarChart3,
+  Link,
 } from "lucide-react";
 
 import {
@@ -284,14 +285,44 @@ export default function AdminPage() {
             <Card className="border-white/10 bg-white/4">
               <CardHeader>
                 <CardTitle className="text-slate-100">
-                  User Management
+                  User Management Overview
                 </CardTitle>
               </CardHeader>
 
-              <CardContent>
-                <p className="text-slate-300 text-sm">
-                  Real user management will be connected in Phase 5.
-                </p>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-4">
+                  <div className="rounded-xl bg-slate-900/50 p-4">
+                    <p className="text-sm text-slate-400">Total Users</p>
+                    <p className="text-2xl font-bold text-slate-100">
+                      {stats.totalUsers}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/50 p-4">
+                    <p className="text-sm text-slate-400">Students</p>
+                    <p className="text-2xl font-bold text-slate-100">
+                      {stats.students}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/50 p-4">
+                    <p className="text-sm text-slate-400">Mentors</p>
+                    <p className="text-2xl font-bold text-slate-100">
+                      {stats.mentors}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/50 p-4">
+                    <p className="text-sm text-slate-400">Admins</p>
+                    <p className="text-2xl font-bold text-slate-100">
+                      {stats.admins}
+                    </p>
+                  </div>
+                </div>
+
+                <Link href="/admin/users">
+                  <Button className="mt-3">Manage Users</Button>
+                </Link>
               </CardContent>
             </Card>
           </TabsContent>
@@ -300,14 +331,40 @@ export default function AdminPage() {
             <Card className="border-white/10 bg-white/4">
               <CardHeader>
                 <CardTitle className="text-slate-100">
-                  Task Management
+                  Task Management Overview
                 </CardTitle>
               </CardHeader>
 
-              <CardContent>
-                <p className="text-slate-300 text-sm">
-                  Real task management will be connected in Phase 4.
-                </p>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-xl bg-slate-900/50 p-4">
+                    <p className="text-sm text-slate-400">Total Tasks</p>
+
+                    <p className="text-2xl font-bold text-slate-100">
+                      {stats.totalTasks}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/50 p-4">
+                    <p className="text-sm text-slate-400">Completed Tasks</p>
+
+                    <p className="text-2xl font-bold text-slate-100">
+                      {stats.completedTasks}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-900/50 p-4">
+                    <p className="text-sm text-slate-400">Average Score</p>
+
+                    <p className="text-2xl font-bold text-slate-100">
+                      {stats.averageEvaluationScore}
+                    </p>
+                  </div>
+                </div>
+
+                <Link href="/admin/tasks">
+                  <Button className="mt-3">Manage Tasks</Button>
+                </Link>
               </CardContent>
             </Card>
           </TabsContent>
@@ -315,13 +372,20 @@ export default function AdminPage() {
           <TabsContent value="reports">
             <Card className="border-white/10 bg-white/4">
               <CardHeader>
-                <CardTitle className="text-slate-100">Reports</CardTitle>
+                <CardTitle className="text-slate-100">
+                  Analytics Reports
+                </CardTitle>
               </CardHeader>
 
               <CardContent>
-                <p className="text-slate-300 text-sm">
-                  Analytics reports will be implemented in Phase 6.
+                <p className="text-slate-300 text-sm mb-4">
+                  Generate insights from users, tasks, evaluations, and
+                  internship performance.
                 </p>
+
+                <Link href="/admin/reports">
+                  <Button>Open Reports Dashboard</Button>
+                </Link>
               </CardContent>
             </Card>
           </TabsContent>

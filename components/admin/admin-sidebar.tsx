@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   Brain,
   LayoutDashboard,
-  ChevronLeft,
+  
   ChevronRight,
   X,
   Users,
@@ -14,8 +14,6 @@ import {
   FileQuestion,
   ListTodo,
   BarChart3,
-  UserPlus,
-  UserRoundPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -56,17 +54,6 @@ const navItems = [
     label: "Reports",
   },
 
-  {
-    href: "/admin/add-admin",
-    icon: UserPlus,
-    label: "Add Admin",
-  },
-
-  {
-    href: "/admin/add-mentor",
-    icon: UserRoundPlus,
-    label: "Add Mentor",
-  },
 ];
 
 interface AdminSidebarProps {
