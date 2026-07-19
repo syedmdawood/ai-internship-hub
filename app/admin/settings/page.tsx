@@ -41,7 +41,7 @@ type ProfileRow = {
   set_password: boolean | null;
 };
 
-export default function SettingsPage() {
+export default function Setting() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -305,10 +305,6 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-        </TabsList>
-
         <TabsContent value="profile" className="space-y-6">
           <Card className="border-border/50 shadow-sm">
             <CardHeader>
@@ -332,52 +328,17 @@ export default function SettingsPage() {
                 <Input id="email" type="email" value={email} disabled />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
-                <Textarea
-                  id="bio"
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  placeholder="Write a short bio about yourself"
-                  className="min-h-[100px]"
-                />
-              </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Role</Label>
                   <Input value={resolvedRole} disabled />
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Skill Level</Label>
-                  <Input value={resolvedSkillLevel} disabled />
-                </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Primary Domain</Label>
-                  <Input value={primaryDomainName} disabled />
-                </div>
+              
 
-                <div className="space-y-2">
-                  <Label>Secondary Domain</Label>
-                  <Input value={secondaryDomainName} disabled />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Last Assessment</Label>
-                <Input
-                  value={
-                    profile?.last_assessment_at
-                      ? new Date(profile.last_assessment_at).toLocaleString()
-                      : "No assessment yet"
-                  }
-                  disabled
-                />
-              </div>
+             
 
               <div className="flex justify-end">
                 <Button onClick={handleSaveProfile} disabled={saving}>

@@ -56,7 +56,6 @@ type MentorStudent = {
   pendingReviews: number;
   progress: number;
   averageScore: number;
-  lastActive: string | null;
 };
 
 type DashboardResponse = {
@@ -317,9 +316,6 @@ export default function MentorPage() {
                     Average Score
                   </TableHead>
 
-                  <TableHead>
-                    Last Active
-                  </TableHead>
 
                   <TableHead className="text-right">
                     Action
@@ -385,11 +381,6 @@ export default function MentorPage() {
                         </Badge>
                       </TableCell>
 
-                      <TableCell className="text-muted-foreground">
-                        {formatDate(
-                          student.lastActive
-                        )}
-                      </TableCell>
 
                       <TableCell className="text-right">
                         <Button

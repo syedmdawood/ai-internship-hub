@@ -215,7 +215,7 @@ export default function AdminDomainsPage() {
 
               <Button
                 onClick={openCreate}
-                className="bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Domain
@@ -281,16 +281,19 @@ export default function AdminDomainsPage() {
                         </DropdownMenuTrigger>
 
                         <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => openEdit(domain)}>
+                          <DropdownMenuItem
+                            onClick={() => openEdit(domain)}
+                            className="cursor-pointer focus:bg-primary focus:text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                          >
                             <Pencil className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
 
                           <DropdownMenuItem
                             onClick={() => toggleStatus(domain)}
+                            className="cursor-pointer focus:bg-primary focus:text-primary-foreground hover:bg-primary hover:text-primary-foreground"
                           >
                             <Power className="mr-2 h-4 w-4" />
-
                             {domain.is_active ? "Deactivate" : "Activate"}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -353,11 +356,14 @@ export default function AdminDomainsPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>
 
-            <Button onClick={saveDomain} className="bg-cyan-400 text-black">
+            <Button
+              onClick={saveDomain}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
               Save
             </Button>
           </DialogFooter>

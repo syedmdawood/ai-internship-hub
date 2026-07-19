@@ -104,14 +104,6 @@ export function AdminNavbar({ onOpenMobileMenu }: AdminNavbarProps) {
           <Menu className="h-5 w-5" />
         </Button>
 
-        <div className="relative max-w-md w-full hidden md:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-
-          <Input
-            placeholder="Search tasks, projects..."
-            className="pl-9 bg-secondary/50 border-border/50"
-          />
-        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -147,15 +139,7 @@ export function AdminNavbar({ onOpenMobileMenu }: AdminNavbarProps) {
 
             <DropdownMenuSeparator className="bg-white/10" />
 
-            <DropdownMenuItem asChild>
-              <Link
-                href="/admin/profile"
-                className="cursor-pointer text-slate-200 focus:bg-white/10"
-              >
-                <User className="mr-2 h-4 w-4" />
-                Profile
-              </Link>
-            </DropdownMenuItem>
+           
 
             <DropdownMenuItem asChild>
               <Link

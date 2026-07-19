@@ -40,26 +40,12 @@ export default function LoginPage() {
       throw fetchError;
     }
 
+    // User does not exist in profiles table
     if (!existingProfile) {
-      const fullName = `${user.user_metadata?.first_name || ""} ${
-        user.user_metadata?.last_name || ""
-      }`.trim();
-
-      const role =
-        user.app_metadata?.role || user.user_metadata?.role || "student";
-
-      const { error: insertError } = await supabase.from("profiles").insert([
-        {
-          id: user.id,
-          full_name: fullName,
-          role,
-        },
-      ]);
-
-      if (insertError) {
-        throw insertError;
-      }
+      throw new Error("User does not exist.");
     }
+
+    return existingProfile;
   }
 
   async function getUserRole(user: any) {
@@ -124,7 +110,7 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setErrorMsg(error.message);
+      setErrorMsg("User does not exist or invalid credentials.");
       setLoading(false);
       return;
     }
@@ -132,30 +118,32 @@ export default function LoginPage() {
     const user = data.user;
 
     if (!user) {
-      setErrorMsg("User not found.");
+      setErrorMsg("User does not exist.");
       setLoading(false);
-      return;
-    }
-
-    const setPassword = user.user_metadata?.setPassword;
-
-    if (setPassword === false) {
-      setLoading(false);
-      router.push("/create-password");
       return;
     }
 
     try {
-      await ensureUserProfile(user);
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      // User exists in Auth but deleted from profiles
+      if (profileError || !profile) {
+        await supabase.auth.signOut();
+        setErrorMsg("User does not exist.");
+        setLoading(false);
+        return;
+      }
 
       dispatch(setSession(data.session));
 
-      const finalRole = await getUserRole(user);
-      redirectByRole(finalRole);
+      redirectByRole(profile.role);
     } catch (err: any) {
-      setErrorMsg(err?.message || "Something went wrong during login.");
+      setErrorMsg(err.message || "Something went wrong.");
       setLoading(false);
-      return;
     }
   };
 
@@ -204,7 +192,9 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             <form className="space-y-4" onSubmit={handleLogin}>
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-200">Email</Label>
+                <Label htmlFor="email" className="text-slate-200">
+                  Email
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -218,7 +208,9 @@ export default function LoginPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-slate-200">Password</Label>
+                  <Label htmlFor="password" className="text-slate-200">
+                    Password
+                  </Label>
                   <Link
                     href="/forgot-password"
                     className="text-xs text-cyan-300 hover:text-cyan-200 hover:underline"

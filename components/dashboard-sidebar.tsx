@@ -28,7 +28,6 @@ const navItems = [
   { href: "/dashboard/feedback", icon: MessageSquareText, label: "AI Feedback" },
   { href: "/dashboard/portfolio", icon: FolderOpen, label: "Portfolio" },
   { href: "/dashboard/chatbot", icon: MessageCircle, label: "Chatbot" },
-  { href: "/dashboard/settings", icon: Settings, label: "Settings" },
 ]
 
 interface DashboardSidebarProps {

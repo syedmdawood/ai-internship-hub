@@ -278,7 +278,6 @@ export default function AdminPage() {
 
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
 
-            <TabsTrigger value="reports">Reports</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">
@@ -364,27 +363,6 @@ export default function AdminPage() {
 
                 <Link href="/admin/tasks">
                   <Button className="mt-3">Manage Tasks</Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="reports">
-            <Card className="border-white/10 bg-white/4">
-              <CardHeader>
-                <CardTitle className="text-slate-100">
-                  Analytics Reports
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent>
-                <p className="text-slate-300 text-sm mb-4">
-                  Generate insights from users, tasks, evaluations, and
-                  internship performance.
-                </p>
-
-                <Link href="/admin/reports">
-                  <Button>Open Reports Dashboard</Button>
                 </Link>
               </CardContent>
             </Card>

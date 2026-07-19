@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import Providers from "@/components/Provider"
 import "./globals.css"
+import AuthRedirect from "@/components/AuthRedirect"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" })
@@ -33,6 +34,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Providers>
+            <AuthRedirect />
             {children}
           </Providers>
 

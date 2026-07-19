@@ -138,16 +138,6 @@ export function DashboardNavbar({ onOpenMobileMenu }: DashboardNavbarProps) {
                 href="/dashboard/settings"
                 className="cursor-pointer text-slate-200 focus:bg-white/10 focus:text-slate-100"
               >
-                <User className="mr-2 h-4 w-4" />
-                Profile
-              </Link>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem asChild>
-              <Link
-                href="/dashboard/settings"
-                className="cursor-pointer text-slate-200 focus:bg-white/10 focus:text-slate-100"
-              >
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </Link>
